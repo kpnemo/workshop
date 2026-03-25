@@ -55,7 +55,7 @@ export function createConversationRouter(
 
   // POST /conversations/:id/messages - Send a message (SSE response)
   router.post("/:id/messages", async (req: Request, res: Response) => {
-    const conversation = store.get(req.params.id);
+    const conversation = store.get(req.params.id as string);
     if (!conversation) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -143,7 +143,7 @@ export function createConversationRouter(
 
   // GET /conversations/:id - Get conversation history
   router.get("/:id", (req: Request, res: Response) => {
-    const conversation = store.get(req.params.id);
+    const conversation = store.get(req.params.id as string);
     if (!conversation) {
       res.status(404).json({ error: "Conversation not found" });
       return;
