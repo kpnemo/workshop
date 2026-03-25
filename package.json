@@ -1,0 +1,8 @@
+{
+  "name": "new-workshop",
+  "private": true,
+  "scripts": {},
+  "engines": {
+    "node": ">=20"
+  }
+}
