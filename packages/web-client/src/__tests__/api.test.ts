@@ -73,7 +73,7 @@ describe("sendMessage", () => {
     const onError = vi.fn();
     const onDone = vi.fn();
 
-    await sendMessage("conv-123", "Hi", { onDelta, onBlocked, onError, onDone });
+    await sendMessage("conv-123", "Hi", { onDelta, onBlocked, onError, onTitle: vi.fn(), onDone });
 
     expect(onDelta).toHaveBeenCalledWith("Hello");
     expect(onDelta).toHaveBeenCalledWith(" world");
@@ -102,7 +102,7 @@ describe("sendMessage", () => {
     const onDone = vi.fn();
 
     await sendMessage("conv-123", "politics", {
-      onDelta: vi.fn(), onBlocked, onError: vi.fn(), onDone,
+      onDelta: vi.fn(), onBlocked, onError: vi.fn(), onTitle: vi.fn(), onDone,
     });
 
     expect(onBlocked).toHaveBeenCalledWith("Stay on topic.");
@@ -129,7 +129,7 @@ describe("sendMessage", () => {
     const onDone = vi.fn();
 
     await sendMessage("conv-123", "test", {
-      onDelta: vi.fn(), onBlocked: vi.fn(), onError, onDone,
+      onDelta: vi.fn(), onBlocked: vi.fn(), onError, onTitle: vi.fn(), onDone,
     });
 
     expect(onError).toHaveBeenCalledWith("LLM service error");
@@ -147,7 +147,7 @@ describe("sendMessage", () => {
     const onDone = vi.fn();
 
     await sendMessage("bad-id", "test", {
-      onDelta: vi.fn(), onBlocked: vi.fn(), onError, onDone,
+      onDelta: vi.fn(), onBlocked: vi.fn(), onError, onTitle: vi.fn(), onDone,
     });
 
     expect(onError).toHaveBeenCalledWith("Conversation not found");

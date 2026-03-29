@@ -1,30 +1,46 @@
-import { useChat } from "../hooks/use-chat";
 import { MessageList } from "./message-list";
 import { ChatInput } from "./chat-input";
 import { Button } from "./ui/button";
+import type { Message } from "../types";
 
-export function ChatContainer() {
-  const { state, sendMessage, startNewChat } = useChat();
+interface ChatContainerProps {
+  conversationId: string | null;
+  messages: Message[];
+  isStreaming: boolean;
+  isConnecting: boolean;
+  error: string | null;
+  onSend: (text: string) => void;
+  onRetry: () => void;
+}
 
-  if (state.isConnecting) {
+export function ChatContainer({
+  conversationId,
+  messages,
+  isStreaming,
+  isConnecting,
+  error,
+  onSend,
+  onRetry,
+}: ChatContainerProps) {
+  if (isConnecting) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <p className="text-muted">Connecting...</p>
       </div>
     );
   }
 
-  if (state.error && !state.conversationId) {
+  if (error && !conversationId) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4">
-        <p className="text-red-400">Failed to connect: {state.error}</p>
-        <Button onClick={startNewChat}>Retry</Button>
+      <div className="flex flex-1 flex-col items-center justify-center gap-4">
+        <p className="text-red-400">Failed to connect: {error}</p>
+        <Button onClick={onRetry}>Retry</Button>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
@@ -36,28 +52,25 @@ export function ChatContainer() {
             <div className="text-xs text-success">Online</div>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={startNewChat}>
-          New Chat
-        </Button>
       </div>
 
       {/* Messages */}
       <MessageList
-        messages={state.messages}
-        isStreaming={state.isStreaming}
+        messages={messages}
+        isStreaming={isStreaming}
       />
 
       {/* Error banner */}
-      {state.error && state.conversationId && (
+      {error && conversationId && (
         <div className="border-t border-red-900/50 bg-red-950/30 px-4 py-2 text-center text-sm text-red-400">
-          {state.error}
+          {error}
         </div>
       )}
 
       {/* Input */}
       <ChatInput
-        onSend={sendMessage}
-        disabled={state.isStreaming || state.isConnecting}
+        onSend={onSend}
+        disabled={isStreaming || isConnecting}
       />
     </div>
   );
