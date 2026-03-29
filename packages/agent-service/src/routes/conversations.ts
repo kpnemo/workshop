@@ -1,7 +1,8 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { ConversationStore } from "../services/conversation.js";
+import { v4 as uuidv4 } from "uuid";
+import { Database } from "../services/database.js";
 import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
 
@@ -15,11 +16,10 @@ function getClient(): Anthropic {
 
 export function createConversationRouter(
   agents: Map<string, AgentConfig>,
-  store: ConversationStore
+  db: Database
 ): Router {
   const router = Router();
 
-  // Helper to start SSE response
   function startSSE(res: Response) {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -30,6 +30,20 @@ export function createConversationRouter(
   function writeSSE(res: Response, event: string, data: object) {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   }
+
+  // GET /conversations - List all conversations
+  router.get("/", (_req: Request, res: Response) => {
+    const conversations = db.listConversations();
+    res.json(
+      conversations.map((c) => ({
+        id: c.id,
+        agentId: c.agentId,
+        title: c.title,
+        updatedAt: c.updatedAt.toISOString(),
+        messageCount: c.messageCount,
+      }))
+    );
+  });
 
   // POST /conversations - Create a new conversation
   router.post("/", (req: Request, res: Response) => {
@@ -45,7 +59,8 @@ export function createConversationRouter(
       return;
     }
 
-    const conversation = store.create(agentId);
+    const id = uuidv4();
+    const conversation = db.createConversation(id, agentId);
     res.status(201).json({
       conversationId: conversation.id,
       agentId: conversation.agentId,
@@ -53,9 +68,19 @@ export function createConversationRouter(
     });
   });
 
+  // DELETE /conversations/:id - Delete a conversation
+  router.delete("/:id", (req: Request, res: Response) => {
+    const deleted = db.deleteConversation(req.params.id as string);
+    if (!deleted) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+    res.status(204).send();
+  });
+
   // POST /conversations/:id/messages - Send a message (SSE response)
   router.post("/:id/messages", async (req: Request, res: Response) => {
-    const conversation = store.get(req.params.id as string);
+    const conversation = db.getConversation(req.params.id as string);
     if (!conversation) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -77,7 +102,7 @@ export function createConversationRouter(
       );
 
       if (!guardrailResult.allowed) {
-        store.addMessage(conversation.id, "user", message);
+        db.addMessage(conversation.id, "user", message);
         startSSE(res);
         writeSSE(res, "blocked", { message: guardrailResult.message });
         writeSSE(res, "done", { conversationId: conversation.id });
@@ -87,16 +112,17 @@ export function createConversationRouter(
     }
 
     // Add user message to history
-    store.addMessage(conversation.id, "user", message);
+    db.addMessage(conversation.id, "user", message);
+
+    // Reload conversation to get all messages including the one just added
+    const updatedConversation = db.getConversation(conversation.id)!;
 
     // Build messages array for Claude
-    const claudeMessages = conversation.messages.map((m) => ({
+    const claudeMessages = updatedConversation.messages.map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
-    // Attempt to create stream BEFORE setting SSE headers.
-    // If this fails (connection refused, auth error), we can still send 502 JSON.
     let stream;
     try {
       stream = getClient().messages.stream({
@@ -112,7 +138,6 @@ export function createConversationRouter(
       return;
     }
 
-    // Stream created successfully — now switch to SSE
     startSSE(res);
 
     try {
@@ -128,8 +153,36 @@ export function createConversationRouter(
         }
       }
 
-      // Add assistant response to history
-      store.addMessage(conversation.id, "assistant", fullResponse);
+      // Save assistant response
+      db.addMessage(conversation.id, "assistant", fullResponse);
+
+      // Generate title if this is the first exchange (no title yet)
+      if (!conversation.title) {
+        try {
+          const titleResponse = await getClient().messages.create({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 20,
+            messages: [
+              {
+                role: "user",
+                content: `Generate a 3-6 word title for this conversation. Reply with ONLY the title, no quotes or punctuation.\n\nUser: ${message}\nAssistant: ${fullResponse.slice(0, 200)}`,
+              },
+            ],
+          });
+
+          const title =
+            titleResponse.content[0].type === "text"
+              ? titleResponse.content[0].text.trim()
+              : null;
+
+          if (title) {
+            db.setTitle(conversation.id, title);
+            writeSSE(res, "title", { title });
+          }
+        } catch (err) {
+          console.error("[routes] Title generation failed:", err);
+        }
+      }
 
       writeSSE(res, "done", { conversationId: conversation.id });
       res.end();
@@ -143,7 +196,7 @@ export function createConversationRouter(
 
   // GET /conversations/:id - Get conversation history
   router.get("/:id", (req: Request, res: Response) => {
-    const conversation = store.get(req.params.id as string);
+    const conversation = db.getConversation(req.params.id as string);
     if (!conversation) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -152,6 +205,7 @@ export function createConversationRouter(
     res.json({
       conversationId: conversation.id,
       agentId: conversation.agentId,
+      title: conversation.title,
       createdAt: conversation.createdAt.toISOString(),
       messages: conversation.messages.map((m) => ({
         role: m.role,
