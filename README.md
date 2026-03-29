@@ -4,6 +4,16 @@ A conversational agent service with REST API + SSE streaming, powered by Anthrop
 
 ## Quick Start
 
+If you have [Claude Code](https://claude.com/claude-code) installed, just type:
+
+```
+/workshop-onboarding
+```
+
+This will install dependencies, configure your `.env` with your API key, start both services, and give you the URLs.
+
+### Manual setup
+
 ```bash
 pnpm install
 cp .env.example .env
@@ -12,7 +22,11 @@ cp .env.example .env
 
 ```bash
 pnpm --filter @new-workshop/agent-service dev
+pnpm --filter @new-workshop/web-client dev
 ```
+
+- Backend (API): http://localhost:3000
+- Frontend (UI): http://localhost:5173
 
 ## API
 
