@@ -1,10 +1,22 @@
 import type {
   ConversationResponse,
   ConversationDetail,
+  ConversationSummary,
   SendMessageCallbacks,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
+export async function listConversations(): Promise<ConversationSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/conversations`);
+
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || "Failed to list conversations");
+  }
+
+  return res.json();
+}
 
 export async function createConversation(
   agentId: string
@@ -21,6 +33,17 @@ export async function createConversation(
   }
 
   return res.json();
+}
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/conversations/${conversationId}`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || "Failed to delete conversation");
+  }
 }
 
 export async function sendMessage(
@@ -71,6 +94,9 @@ export async function sendMessage(
             break;
           case "error":
             callbacks.onError(data.message);
+            break;
+          case "title":
+            callbacks.onTitle(data.title);
             break;
           case "done":
             callbacks.onDone();
