@@ -8,11 +8,23 @@ vi.mock("../lib/api");
 describe("useChat", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // listConversations returns empty → triggers auto-create flow
+    vi.mocked(api.listConversations).mockResolvedValue([]);
     vi.mocked(api.createConversation).mockResolvedValue({
       conversationId: "conv-123",
       agentId: "support-bot",
       createdAt: "2026-03-25T10:00:00Z",
     });
+    // After create, re-fetch returns the new conversation
+    vi.mocked(api.listConversations).mockResolvedValue([
+      {
+        id: "conv-123",
+        agentId: "support-bot",
+        title: null,
+        updatedAt: "2026-03-25T10:00:00Z",
+        messageCount: 0,
+      },
+    ]);
   });
 
   it("creates a conversation on mount", async () => {
@@ -115,6 +127,22 @@ describe("useChat", () => {
       agentId: "support-bot",
       createdAt: "2026-03-25T11:00:00Z",
     });
+    vi.mocked(api.listConversations).mockResolvedValue([
+      {
+        id: "conv-456",
+        agentId: "support-bot",
+        title: null,
+        updatedAt: "2026-03-25T11:00:00Z",
+        messageCount: 0,
+      },
+      {
+        id: "conv-123",
+        agentId: "support-bot",
+        title: null,
+        updatedAt: "2026-03-25T10:00:00Z",
+        messageCount: 2,
+      },
+    ]);
     await act(async () => {
       result.current.startNewChat();
     });
