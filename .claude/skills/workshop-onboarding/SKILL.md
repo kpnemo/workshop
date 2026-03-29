@@ -18,8 +18,9 @@ Before running through setup steps, quickly check what's already in place. This 
 Run these checks:
 - Does `node_modules/` exist in the project root? (indicates dependencies were installed)
 - Does `.env` exist? If so, does it have a real API key (not the `your-key-here` placeholder)?
-- Is anything already running on ports 3000 or 5173? (`lsof -ti:3000` / `lsof -ti:5173`)
+- Is anything already running on ports 3000 or 5173? (`lsof -ti:3000` / `lsof -ti:5173`) — if a port is in use, also verify the service responds correctly (curl it) before skipping its startup step. A process occupying the port doesn't guarantee a healthy service.
 - Was `pnpm` used, or did the user use `npm`? (check for `node_modules/.pnpm` — if it's missing but `node_modules` exists, the user likely used npm)
+- What Node.js version is installed? (`node --version`) — workshop participants sometimes have old versions. If below v18, warn the user early since the project may not work correctly.
 
 Based on what you find, skip steps that are already complete and tell the user what you're skipping and why. For example: "Looks like dependencies are already installed — skipping that step."
 
@@ -64,6 +65,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 Do NOT echo the key to the terminal or include it in any visible output. Use the Edit tool to update the `.env` file directly.
 
+Note: The key will be visible in the conversation transcript when the user pastes it via AskUserQuestion — that's unavoidable. The important thing is not to run shell commands that would log it to terminal history or output.
+
 ## Step 3: Start the backend
 
 Start the agent service in the background:
@@ -90,9 +93,15 @@ Start the web client in the background:
 pnpm --filter @new-workshop/web-client dev
 ```
 
-Run this in the background as well. Wait a moment for Vite to start, then verify it's running.
+Run this in the background as well. Wait a moment for Vite to start, then verify it's running by curling the dev server:
 
-Skip if Step 0 found the frontend already running on port 5173.
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
+```
+
+Expected: 200. This mirrors the backend health check and catches cases where the port is occupied but Vite failed to start.
+
+Skip if Step 0 found the frontend already running and healthy on port 5173.
 
 ## Step 5: Present the result
 
@@ -106,3 +115,11 @@ Once both services are confirmed running, tell the user:
 > Open http://localhost:5173 in your browser to start using the app.
 
 If any step failed and couldn't be resolved, clearly tell the user what went wrong and what they need to fix manually.
+
+## Bonus: Orient the user
+
+After setup succeeds, give the user a quick nudge on what to do next. Check if the `agents/` directory has any markdown files — if so, mention them:
+
+> You have X agent persona(s) defined in `agents/`. Try chatting with one in the UI!
+
+This small hint bridges the gap between "environment works" and "I know what to do now," which matters in a workshop setting where participants may be new to the project.
