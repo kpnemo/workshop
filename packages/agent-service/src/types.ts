@@ -23,6 +23,16 @@ export interface Message {
 export interface Conversation {
   id: string;
   agentId: string;
+  title: string | null;
   messages: Message[];
   createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ConversationSummary {
+  id: string;
+  agentId: string;
+  title: string | null;
+  updatedAt: Date;
+  messageCount: number;
 }
