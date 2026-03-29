@@ -1,12 +1,15 @@
-import express from "express";
-import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+import express from "express";
+import cors from "cors";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+
 import { loadAgents } from "./services/agent-loader.js";
 import { Database } from "./services/database.js";
 import { createConversationRouter } from "./routes/conversations.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const AGENTS_DIR =

@@ -6,10 +6,8 @@ A conversational agent service with REST API + SSE streaming, powered by Anthrop
 
 ```bash
 pnpm install
-```
-
-```bash
-export ANTHROPIC_API_KEY=your-key-here
+cp .env.example .env
+# Edit .env and add your Anthropic API key
 ```
 
 ```bash
