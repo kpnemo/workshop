@@ -1,0 +1,1 @@
+Set up the workshop project from scratch. Use the workshop-onboarding skill to install dependencies, configure the .env file with the user's API key, start both backend and frontend services, and present the URLs.
