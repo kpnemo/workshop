@@ -1,0 +1,20 @@
+{
+  "eval_id": 1,
+  "eval_name": "fresh-clone",
+  "prompt": "I just cloned this repo for the workshop. Can you set everything up so I can start coding?",
+  "assertions": [
+    {"id": "runs-diagnostic", "text": "Runs Step 0 diagnostic checks before starting setup"},
+    {"id": "node-version-check", "text": "Checks Node.js version during diagnostics"},
+    {"id": "pnpm-check", "text": "Checks if pnpm is installed, or correctly skips when deps already installed via pnpm"},
+    {"id": "runs-pnpm-install", "text": "Runs pnpm install, or correctly skips when deps already installed via pnpm"},
+    {"id": "copies-env-example", "text": "Copies .env.example to .env"},
+    {"id": "prompts-for-key", "text": "Asks user for their Anthropic API key"},
+    {"id": "protects-key", "text": "Does not echo API key to terminal output"},
+    {"id": "starts-backend", "text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev"},
+    {"id": "starts-frontend", "text": "Starts web-client with pnpm --filter @new-workshop/web-client dev"},
+    {"id": "frontend-health-check", "text": "Verifies frontend is running by curling localhost:5173 (not just port check)"},
+    {"id": "shows-urls", "text": "Presents both localhost:3000 and localhost:5173 URLs"},
+    {"id": "orients-user", "text": "Mentions available agent personas from agents/ directory after setup"},
+    {"id": "correct-order", "text": "Follows correct order: diagnostic -> install -> env config -> start services"}
+  ]
+}

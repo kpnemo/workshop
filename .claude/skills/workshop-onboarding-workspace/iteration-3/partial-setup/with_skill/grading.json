@@ -1,0 +1,19 @@
+{
+  "run_id": "partial-setup-with_skill",
+  "expectations": [
+    {"text": "Runs Step 0 diagnostic checks before starting setup", "passed": true, "evidence": "Step 0 runs 5 checks (node_modules, .env, ports 3000/5173, pnpm vs npm, node version) before any setup actions"},
+    {"text": "Checks Node.js version during diagnostics", "passed": true, "evidence": "Check 5: 'Tool call: Bash with command node --version', expected result 'v20.11.0'"},
+    {"text": "Detects npm vs pnpm mismatch and explains why pnpm is needed", "passed": true, "evidence": "Diagnostic summary: 'this project is a pnpm monorepo, so it needs pnpm install rather than npm install -- npm doesn't wire up the workspace dependencies between the backend and frontend packages correctly'"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 1: 'Tool call: Bash with command cd ... && pnpm install'"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 2: 'Tool call: Bash with command cp .env.example .env'"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 2: 'I need your Anthropic API key to configure the project. You can get one from https://console.anthropic.com/settings/keys'"},
+    {"text": "Does not echo API key to terminal output", "passed": true, "evidence": "Step 2: 'The skill specifically says: Do NOT echo the key to the terminal... So I use the Edit tool rather than a shell command like sed or echo'"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 3: 'Tool call: Bash with command pnpm --filter @new-workshop/agent-service dev, with run_in_background: true'"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 4: 'Tool call: Bash with command pnpm --filter @new-workshop/web-client dev, with run_in_background: true'"},
+    {"text": "Verifies frontend is running by curling localhost:5173 (not just port check)", "passed": true, "evidence": "Step 4: 'Tool call: Bash with command curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173', result '200'"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 5: 'Backend (API): http://localhost:3000' and 'Frontend (UI): http://localhost:5173'"},
+    {"text": "Mentions available agent personas from agents/ directory after setup", "passed": true, "evidence": "Bonus: 'You have 2 agent persona(s) defined in agents/. Try chatting with one in the UI!'"},
+    {"text": "Follows correct order: diagnostic -> install -> env config -> start services", "passed": true, "evidence": "Order: Step 0 (diagnostic) -> Step 1 (pnpm install) -> Step 2 (env config) -> Steps 3-4 (start services) -> Step 5 (result)"},
+    {"text": "Acknowledges user already attempted install, doesn't ignore their context", "passed": true, "evidence": "Diagnostic summary explicitly addresses user's npm install: 'I can see two things going on here. First, this project is a pnpm monorepo, so it needs pnpm install rather than npm install... No worries, that's an easy fix. Second, you're missing a .env file... that's why you're seeing the API key error.'"}
+  ]
+}

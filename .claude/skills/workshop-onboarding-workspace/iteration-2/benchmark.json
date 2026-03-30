@@ -1,0 +1,44 @@
+{
+  "skill_name": "workshop-onboarding",
+  "iteration": 2,
+  "configurations": [
+    {
+      "name": "with_skill_v2",
+      "evals": [
+        {"eval_name": "fresh-clone", "pass_rate": 1.0, "passed": 10, "total": 10, "tokens": 17219, "duration_seconds": 80.1},
+        {"eval_name": "confused-newcomer", "pass_rate": 1.0, "passed": 10, "total": 10, "tokens": 16607, "duration_seconds": 76.2},
+        {"eval_name": "partial-setup", "pass_rate": 1.0, "passed": 11, "total": 11, "tokens": 16885, "duration_seconds": 75.7}
+      ],
+      "aggregate": {"mean_pass_rate": 1.0, "mean_tokens": 16904, "mean_duration_seconds": 77.3}
+    },
+    {
+      "name": "with_skill_v1 (iteration 1)",
+      "evals": [
+        {"eval_name": "fresh-clone", "pass_rate": 1.0, "passed": 9, "total": 9, "tokens": 16315, "duration_seconds": 65.5},
+        {"eval_name": "confused-newcomer", "pass_rate": 1.0, "passed": 9, "total": 9, "tokens": 15888, "duration_seconds": 68.2},
+        {"eval_name": "partial-setup", "pass_rate": 0.8, "passed": 8, "total": 10, "tokens": 16320, "duration_seconds": 72.5}
+      ],
+      "aggregate": {"mean_pass_rate": 0.93, "mean_tokens": 16174, "mean_duration_seconds": 68.7}
+    },
+    {
+      "name": "without_skill (iteration 1)",
+      "evals": [
+        {"eval_name": "fresh-clone", "pass_rate": 0.67, "passed": 6, "total": 9, "tokens": 17668, "duration_seconds": 68.0},
+        {"eval_name": "confused-newcomer", "pass_rate": 0.89, "passed": 8, "total": 9, "tokens": 18096, "duration_seconds": 69.8},
+        {"eval_name": "partial-setup", "pass_rate": 0.7, "passed": 7, "total": 10, "tokens": 18275, "duration_seconds": 71.4}
+      ],
+      "aggregate": {"mean_pass_rate": 0.75, "mean_tokens": 18013, "mean_duration_seconds": 69.7}
+    }
+  ],
+  "delta_v2_vs_v1": {"pass_rate": "+0.07 (93% -> 100%)", "note": "Partial-setup went from 80% to 100%"},
+  "delta_v2_vs_baseline": {"pass_rate": "+0.25 (75% -> 100%)", "note": "Massive improvement across all scenarios"},
+  "analysis": [
+    "V2 skill achieves 100% pass rate across all 3 test cases (31/31 assertions passed).",
+    "The biggest improvement is in the partial-setup scenario: V1 scored 80% (missed npm/pnpm detection and context acknowledgment), V2 scores 100%.",
+    "Step 0 diagnostic is working as designed: all 3 transcripts start with 4 parallel diagnostic checks.",
+    "npm vs pnpm mismatch: now explicitly detected and explained kindly ('No worries, this is a common mix-up!').",
+    "The confused-newcomer transcript includes 6 branching scenarios (A-F) showing the skill handles diverse states intelligently.",
+    "Minor cost: V2 uses slightly more tokens (~730 more avg) and takes ~9s longer due to diagnostic step. Acceptable tradeoff for 100% accuracy.",
+    "Remaining gaps noted by agents: no explicit 'rm -rf node_modules' before pnpm reinstall, no check for package-lock.json cleanup. These are minor and unlikely to cause real issues."
+  ]
+}

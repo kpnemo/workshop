@@ -1,0 +1,14 @@
+{
+  "run_id": "confused-newcomer-without_skill",
+  "expectations": [
+    {"text": "Checks if pnpm is installed or offers to install it", "passed": true, "evidence": "Step 3: checks pnpm --version, offers to install if missing"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 4: runs 'pnpm install'"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 5: runs 'cp .env.example .env' after checking"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 5: 'Do you have one? If so, I can set it up for you'"},
+    {"text": "Does not echo API key to terminal output", "passed": false, "evidence": "Step 5: 'I would edit .env to insert it' — no explicit mention of protecting the key from terminal output"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 6: runs 'pnpm --filter @new-workshop/agent-service dev'"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 7: runs 'pnpm --filter @new-workshop/web-client dev'"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 8: 'frontend is at http://localhost:5173 and the backend API is at http://localhost:3000'"},
+    {"text": "Follows correct order: install -> env config -> start services", "passed": true, "evidence": "Steps 4-8 follow correct order"}
+  ]
+}

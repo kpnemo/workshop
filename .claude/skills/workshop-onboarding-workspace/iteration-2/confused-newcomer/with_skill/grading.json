@@ -1,0 +1,15 @@
+{
+  "run_id": "confused-newcomer-with_skill-v2",
+  "expectations": [
+    {"text": "Runs Step 0 diagnostic checks before starting setup", "passed": true, "evidence": "Step 0 runs 4 parallel checks with 6 branching scenarios (A-F)"},
+    {"text": "Checks if pnpm is installed or offers to install it", "passed": true, "evidence": "Step 1: 'Looks like pnpm isn't installed... Mind if I install it for you?'"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 1: runs 'pnpm install'"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 2: runs 'cp .env.example .env' when not present"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 2: uses AskUserQuestion with console URL"},
+    {"text": "Does not echo API key to terminal output", "passed": true, "evidence": "Step 2: 'NOT echo the key to the terminal, NOT include it in any bash command'"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 3: exact command with run_in_background"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 4: exact command with run_in_background"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 5: shows both URLs"},
+    {"text": "Follows correct order: diagnostic -> install -> env config -> start services", "passed": true, "evidence": "Steps 0-5 in correct order, skippable table included"}
+  ]
+}

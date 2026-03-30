@@ -1,0 +1,18 @@
+{
+  "run_id": "fresh-clone-with_skill",
+  "expectations": [
+    {"text": "Runs Step 0 diagnostic checks before starting setup", "passed": true, "evidence": "Step 0 runs 5 diagnostic checks (node_modules, .env, ports 3000/5173, node version) before any setup actions"},
+    {"text": "Checks Node.js version during diagnostics", "passed": true, "evidence": "Check 4 in Step 0: 'Tool call: Bash with command node --version' with simulated result 'v20.11.0'"},
+    {"text": "Checks if pnpm is installed, or correctly skips when deps already installed via pnpm", "passed": true, "evidence": "Step 0 detects node_modules/.pnpm exists, confirming pnpm was used. Correctly skips Step 1 entirely since deps are already installed via pnpm."},
+    {"text": "Runs pnpm install, or correctly skips when deps already installed via pnpm", "passed": true, "evidence": "Step 1 correctly skipped because node_modules/.pnpm already exists — deps are already installed via pnpm. This is the expected behavior per the skill's Step 0 logic."},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 2a: 'Tool call: Bash with command cp .env.example .env'"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 2b: 'I need your Anthropic API key to configure the project. You can get one from https://console.anthropic.com/settings/keys'"},
+    {"text": "Does not echo API key to terminal output", "passed": true, "evidence": "Step 2c: 'Claude does NOT use a Bash command like echo or sed to write the key... uses the Edit tool to avoid logging the key to terminal history'"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 3a: 'Tool call: Bash with command pnpm --filter @new-workshop/agent-service dev and run_in_background: true'"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 4a: 'Tool call: Bash with command pnpm --filter @new-workshop/web-client dev and run_in_background: true'"},
+    {"text": "Verifies frontend is running by curling localhost:5173 (not just port check)", "passed": true, "evidence": "Step 4b: 'Tool call: Bash with command curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173' -- explicit HTTP health check"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 5: 'Backend (API): http://localhost:3000' and 'Frontend (UI): http://localhost:5173'"},
+    {"text": "Mentions available agent personas from agents/ directory after setup", "passed": true, "evidence": "Bonus section: 'You have 1 agent persona defined in agents/ (support-bot.md). Try chatting with it in the UI!'"},
+    {"text": "Follows correct order: diagnostic -> install -> env config -> start services", "passed": true, "evidence": "Order is Step 0 (diagnostics) -> Step 1 (skipped/install) -> Step 2 (env config) -> Steps 3-4 (start services) -> Step 5 (present result)"}
+  ]
+}

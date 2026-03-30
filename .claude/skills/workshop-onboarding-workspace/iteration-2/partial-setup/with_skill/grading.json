@@ -1,0 +1,16 @@
+{
+  "run_id": "partial-setup-with_skill-v2",
+  "expectations": [
+    {"text": "Runs Step 0 diagnostic checks before starting setup", "passed": true, "evidence": "Step 0 runs 4 checks: node_modules, .env, ports, .pnpm directory"},
+    {"text": "Detects npm vs pnpm mismatch and explains why pnpm is needed", "passed": true, "evidence": "Diagnosis: 'Package manager mismatch: You mentioned npm install — this project uses pnpm workspaces... No worries, this is a common mix-up!'"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 1: runs 'pnpm install' after explaining why"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 2: runs 'cp .env.example .env'"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 2: uses AskUserQuestion with console URL"},
+    {"text": "Does not echo API key to terminal output", "passed": true, "evidence": "Step 2: uses Edit tool, explicitly notes 'NOT echoing it to the terminal'"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 3: exact command in background"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 4: exact command in background"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 5: shows both URLs"},
+    {"text": "Follows correct order: diagnostic -> install -> env config -> start services", "passed": true, "evidence": "Steps 0-5 in correct order, diagnostic explicitly first"},
+    {"text": "Acknowledges user already attempted install, doesn't ignore their context", "passed": true, "evidence": "Diagnosis says 'I can see what's going on' and explicitly addresses both npm mismatch and missing .env as two separate findings"}
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "skill_name": "workshop-onboarding",
+  "iteration": 1,
+  "configurations": [
+    {
+      "name": "with_skill",
+      "evals": [
+        {
+          "eval_name": "fresh-clone",
+          "pass_rate": 1.0,
+          "passed": 9,
+          "total": 9,
+          "tokens": 16315,
+          "duration_seconds": 65.5
+        },
+        {
+          "eval_name": "confused-newcomer",
+          "pass_rate": 1.0,
+          "passed": 9,
+          "total": 9,
+          "tokens": 15888,
+          "duration_seconds": 68.2
+        },
+        {
+          "eval_name": "partial-setup",
+          "pass_rate": 0.8,
+          "passed": 8,
+          "total": 10,
+          "tokens": 16320,
+          "duration_seconds": 72.5
+        }
+      ],
+      "aggregate": {
+        "mean_pass_rate": 0.93,
+        "mean_tokens": 16174,
+        "mean_duration_seconds": 68.7
+      }
+    },
+    {
+      "name": "without_skill",
+      "evals": [
+        {
+          "eval_name": "fresh-clone",
+          "pass_rate": 0.67,
+          "passed": 6,
+          "total": 9,
+          "tokens": 17668,
+          "duration_seconds": 68.0
+        },
+        {
+          "eval_name": "confused-newcomer",
+          "pass_rate": 0.89,
+          "passed": 8,
+          "total": 9,
+          "tokens": 18096,
+          "duration_seconds": 69.8
+        },
+        {
+          "eval_name": "partial-setup",
+          "pass_rate": 0.7,
+          "passed": 7,
+          "total": 10,
+          "tokens": 18275,
+          "duration_seconds": 71.4
+        }
+      ],
+      "aggregate": {
+        "mean_pass_rate": 0.75,
+        "mean_tokens": 18013,
+        "mean_duration_seconds": 69.7
+      }
+    }
+  ],
+  "delta": {
+    "pass_rate": "+0.18",
+    "tokens": "-1839",
+    "duration_seconds": "-1.0"
+  },
+  "analysis": [
+    "The skill's biggest win is on fresh-clone: baseline did NOT start services (only explained how), while the skill started both automatically. This is the core value proposition.",
+    "Key security advantage: with-skill consistently uses Edit tool to protect API keys from terminal output. Baseline tells users to manually edit files, potentially exposing keys.",
+    "Weakness found: partial-setup scenario — the skill runs pnpm install unconditionally and does not acknowledge the user's prior npm install. The baseline actually did better at recognizing the npm/pnpm mismatch.",
+    "The confused-newcomer baseline performed surprisingly well — it started services and followed good order. The skill's advantage here was mainly in structure and security.",
+    "Non-discriminating assertion: 'Runs pnpm install' passed for all runs — both with and without skill. Not a differentiator.",
+    "Recommended improvement: Add a diagnostic preamble to the skill that checks what's already done before running through all steps sequentially."
+  ]
+}

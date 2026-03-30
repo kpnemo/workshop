@@ -1,0 +1,15 @@
+{
+  "run_id": "partial-setup-with_skill",
+  "expectations": [
+    {"text": "Checks if pnpm is installed or offers to install it", "passed": false, "evidence": "Skill doesn't instruct checking pnpm when user already ran npm install"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 1: runs pnpm install unconditionally"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 2: copies .env.example to .env when it doesn't exist"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 2: uses AskUserQuestion to request the key"},
+    {"text": "Does not echo API key to terminal output", "passed": true, "evidence": "Step 2: uses Edit tool silently"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 3: runs exact command"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 4: runs exact command"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 5: shows both URLs"},
+    {"text": "Follows correct order: install -> env config -> start services", "passed": true, "evidence": "Steps 1-5 in correct order"},
+    {"text": "Acknowledges user already attempted install, doesn't ignore their context", "passed": false, "evidence": "Skill runs pnpm install unconditionally with no acknowledgment of user's prior npm install. Analysis: 'the skill does NOT check for an existing node_modules directory'"}
+  ]
+}

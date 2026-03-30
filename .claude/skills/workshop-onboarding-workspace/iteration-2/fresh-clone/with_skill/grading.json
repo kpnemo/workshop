@@ -1,0 +1,15 @@
+{
+  "run_id": "fresh-clone-with_skill-v2",
+  "expectations": [
+    {"text": "Runs Step 0 diagnostic checks before starting setup", "passed": true, "evidence": "Step 0 runs 4 parallel checks: node_modules, .env, ports, pnpm vs npm"},
+    {"text": "Checks if pnpm is installed or offers to install it", "passed": true, "evidence": "Step 1: runs 'pnpm --version', offers 'npm install -g pnpm' if missing"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 1: runs 'pnpm install' from project root"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 2: runs 'cp .env.example .env'"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 2: uses AskUserQuestion tool with console URL"},
+    {"text": "Does not echo API key to terminal output", "passed": true, "evidence": "Step 2: 'I would NOT echo the key to the terminal' — uses Edit tool directly"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 3: exact command with run_in_background"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 4: exact command with run_in_background"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 5: shows both URLs in success message"},
+    {"text": "Follows correct order: diagnostic -> install -> env config -> start services", "passed": true, "evidence": "Steps 0-5 in correct order with diagnostic first"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "eval_id": 1,
+  "eval_name": "fresh-clone",
+  "prompt": "I just cloned this repo for the workshop. Can you set everything up so I can start coding?",
+  "assertions": [
+    {"id": "pnpm-check", "text": "Checks if pnpm is installed or offers to install it"},
+    {"id": "runs-pnpm-install", "text": "Runs pnpm install (not npm install)"},
+    {"id": "copies-env-example", "text": "Copies .env.example to .env"},
+    {"id": "prompts-for-key", "text": "Asks user for their Anthropic API key"},
+    {"id": "protects-key", "text": "Does not echo API key to terminal output"},
+    {"id": "starts-backend", "text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev"},
+    {"id": "starts-frontend", "text": "Starts web-client with pnpm --filter @new-workshop/web-client dev"},
+    {"id": "shows-urls", "text": "Presents both localhost:3000 and localhost:5173 URLs"},
+    {"id": "correct-order", "text": "Follows correct order: install -> env config -> start services"}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "skill_name": "workshop-onboarding",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just cloned this repo for the workshop. Can you set everything up so I can start coding?",
+      "expected_output": "Installs deps, prompts for API key, configures .env, starts both services, shows URLs",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "hey im at the workshop and nothing is working, how do i get this running?",
+      "expected_output": "Guides through full setup in friendly tone, installs deps, configures env, starts services",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I already ran npm install but the app won't start, something about an API key?",
+      "expected_output": "Recognizes partial setup, focuses on .env config and starting services rather than reinstalling",
+      "files": []
+    }
+  ]
+}

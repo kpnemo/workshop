@@ -1,0 +1,15 @@
+{
+  "run_id": "partial-setup-without_skill",
+  "expectations": [
+    {"text": "Checks if pnpm is installed or offers to install it", "passed": true, "evidence": "Step 4: notices npm vs pnpm mismatch, offers to install pnpm"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 4: recommends pnpm install after flagging the mismatch"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 3: 'cp .env.example .env'"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 3: 'Do you have an Anthropic API key?'"},
+    {"text": "Does not echo API key to terminal output", "passed": false, "evidence": "Step 3: tells user to 'open .env and replace your-key-here' — manual process, no protection"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": true, "evidence": "Step 5: provides exact command"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": true, "evidence": "Step 5: provides exact command"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 5: mentions port 3000 and web client command"},
+    {"text": "Follows correct order: install -> env config -> start services", "passed": false, "evidence": "Steps go: diagnose -> env config -> npm/pnpm flag -> start. Env config comes before install fix"},
+    {"text": "Acknowledges user already attempted install, doesn't ignore their context", "passed": true, "evidence": "Step 4: explicitly flags npm vs pnpm mismatch and explains why re-install is needed"}
+  ]
+}

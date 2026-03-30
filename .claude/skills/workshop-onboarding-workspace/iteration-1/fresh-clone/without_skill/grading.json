@@ -1,0 +1,14 @@
+{
+  "run_id": "fresh-clone-without_skill",
+  "expectations": [
+    {"text": "Checks if pnpm is installed or offers to install it", "passed": true, "evidence": "Step 2: checks node --version and pnpm --version, offers install if missing"},
+    {"text": "Runs pnpm install (not npm install)", "passed": true, "evidence": "Step 3: runs 'pnpm install'"},
+    {"text": "Copies .env.example to .env", "passed": true, "evidence": "Step 4: runs 'cp .env.example .env'"},
+    {"text": "Asks user for their Anthropic API key", "passed": true, "evidence": "Step 4: 'Do you already have an Anthropic API key, or do you need help getting one?'"},
+    {"text": "Does not echo API key to terminal output", "passed": false, "evidence": "Step 4 tells user to 'replace your-key-here with your actual Anthropic API key' — implies manual edit, doesn't use Edit tool to protect the key"},
+    {"text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev", "passed": false, "evidence": "Step 6 only EXPLAINS how to start services, does not actually start them. Says 'I would NOT start the dev servers automatically'"},
+    {"text": "Starts web-client with pnpm --filter @new-workshop/web-client dev", "passed": false, "evidence": "Same as above — only explains, does not start"},
+    {"text": "Presents both localhost:3000 and localhost:5173 URLs", "passed": true, "evidence": "Step 6 mentions both http://localhost:3000 and http://localhost:5173"},
+    {"text": "Follows correct order: install -> env config -> start services", "passed": true, "evidence": "Steps follow logical order, even though services aren't actually started"}
+  ]
+}

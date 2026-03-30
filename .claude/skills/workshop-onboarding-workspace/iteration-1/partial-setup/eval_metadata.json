@@ -1,0 +1,17 @@
+{
+  "eval_id": 3,
+  "eval_name": "partial-setup",
+  "prompt": "I already ran npm install but the app won't start, something about an API key?",
+  "assertions": [
+    {"id": "pnpm-check", "text": "Checks if pnpm is installed or offers to install it"},
+    {"id": "runs-pnpm-install", "text": "Runs pnpm install (not npm install) — user used npm, so pnpm is needed"},
+    {"id": "copies-env-example", "text": "Copies .env.example to .env"},
+    {"id": "prompts-for-key", "text": "Asks user for their Anthropic API key"},
+    {"id": "protects-key", "text": "Does not echo API key to terminal output"},
+    {"id": "starts-backend", "text": "Starts agent-service with pnpm --filter @new-workshop/agent-service dev"},
+    {"id": "starts-frontend", "text": "Starts web-client with pnpm --filter @new-workshop/web-client dev"},
+    {"id": "shows-urls", "text": "Presents both localhost:3000 and localhost:5173 URLs"},
+    {"id": "correct-order", "text": "Follows correct order: install -> env config -> start services"},
+    {"id": "recognizes-partial", "text": "Acknowledges user already attempted install, doesn't ignore their context"}
+  ]
+}
