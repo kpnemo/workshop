@@ -58,3 +58,119 @@ describe("authMiddleware", () => {
     expect(JSON.parse(res.body).userId).toBe("u-1");
   });
 });
+
+function buildAuthApp(db: Database) {
+  const app = express();
+  app.use(express.json());
+  app.use("/auth", createAuthRouter(db, "test-secret"));
+  return app;
+}
+
+function makeJsonRequest(app: express.Express, method: string, reqPath: string, body?: object) {
+  return new Promise<{ status: number; body: string }>((resolve) => {
+    const server = app.listen(0, () => {
+      const port = (server.address() as any).port;
+      const req = http.request(
+        { hostname: "127.0.0.1", port, path: reqPath, method, headers: { "Content-Type": "application/json" } },
+        (res) => {
+          let data = "";
+          res.on("data", (chunk: string) => (data += chunk));
+          res.on("end", () => { server.close(); resolve({ status: res.statusCode!, body: data }); });
+        }
+      );
+      if (body) req.write(JSON.stringify(body));
+      req.end();
+    });
+  });
+}
+
+describe("POST /auth/signup", () => {
+  let db: Database;
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = path.join(os.tmpdir(), `test-auth-${Date.now()}.db`);
+    db = new Database(dbPath);
+  });
+
+  afterEach(() => {
+    db.close();
+    try { fs.unlinkSync(dbPath); } catch {}
+    try { fs.unlinkSync(dbPath + "-wal"); } catch {}
+    try { fs.unlinkSync(dbPath + "-shm"); } catch {}
+  });
+
+  it("creates user and returns token", async () => {
+    const app = buildAuthApp(db);
+    const res = await makeJsonRequest(app, "POST", "/auth/signup", { email: "test@example.com", password: "password123" });
+    expect(res.status).toBe(201);
+    const json = JSON.parse(res.body);
+    expect(json.token).toBeDefined();
+    expect(json.user.email).toBe("test@example.com");
+    expect(json.user.id).toBeDefined();
+  });
+
+  it("returns 409 for duplicate email", async () => {
+    const app = buildAuthApp(db);
+    await makeJsonRequest(app, "POST", "/auth/signup", { email: "test@example.com", password: "password123" });
+    const res = await makeJsonRequest(app, "POST", "/auth/signup", { email: "test@example.com", password: "password456" });
+    expect(res.status).toBe(409);
+    expect(JSON.parse(res.body).error).toBe("Email already registered");
+  });
+
+  it("returns 400 when email or password missing", async () => {
+    const app = buildAuthApp(db);
+    const res = await makeJsonRequest(app, "POST", "/auth/signup", { email: "test@example.com" });
+    expect(res.status).toBe(400);
+    expect(JSON.parse(res.body).error).toBe("Email and password required");
+  });
+
+  it("returns 400 when password too short", async () => {
+    const app = buildAuthApp(db);
+    const res = await makeJsonRequest(app, "POST", "/auth/signup", { email: "test@example.com", password: "short" });
+    expect(res.status).toBe(400);
+    expect(JSON.parse(res.body).error).toBe("Password must be at least 8 characters");
+  });
+});
+
+describe("POST /auth/login", () => {
+  let db: Database;
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = path.join(os.tmpdir(), `test-auth-login-${Date.now()}.db`);
+    db = new Database(dbPath);
+  });
+
+  afterEach(() => {
+    db.close();
+    try { fs.unlinkSync(dbPath); } catch {}
+    try { fs.unlinkSync(dbPath + "-wal"); } catch {}
+    try { fs.unlinkSync(dbPath + "-shm"); } catch {}
+  });
+
+  it("returns token for valid credentials", async () => {
+    const app = buildAuthApp(db);
+    await makeJsonRequest(app, "POST", "/auth/signup", { email: "test@example.com", password: "password123" });
+    const res = await makeJsonRequest(app, "POST", "/auth/login", { email: "test@example.com", password: "password123" });
+    expect(res.status).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.token).toBeDefined();
+    expect(json.user.email).toBe("test@example.com");
+  });
+
+  it("returns 401 for wrong password", async () => {
+    const app = buildAuthApp(db);
+    await makeJsonRequest(app, "POST", "/auth/signup", { email: "test@example.com", password: "password123" });
+    const res = await makeJsonRequest(app, "POST", "/auth/login", { email: "test@example.com", password: "wrongpassword" });
+    expect(res.status).toBe(401);
+    expect(JSON.parse(res.body).error).toBe("Invalid email or password");
+  });
+
+  it("returns 401 for nonexistent email", async () => {
+    const app = buildAuthApp(db);
+    const res = await makeJsonRequest(app, "POST", "/auth/login", { email: "nobody@example.com", password: "password123" });
+    expect(res.status).toBe(401);
+    expect(JSON.parse(res.body).error).toBe("Invalid email or password");
+  });
+});
