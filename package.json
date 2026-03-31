@@ -2,7 +2,11 @@
   "name": "new-workshop",
   "private": true,
   "scripts": {
-    "start": "pnpm -r --parallel dev"
+    "start": "pnpm pm2 start ecosystem.config.cjs && pnpm logs",
+    "stop": "pnpm pm2 stop ecosystem.config.cjs",
+    "restart": "pnpm pm2 restart ecosystem.config.cjs",
+    "logs": "pnpm pm2 logs --lines 50",
+    "status": "pnpm pm2 list"
   },
   "engines": {
     "node": ">=20"
@@ -11,5 +15,8 @@
     "onlyBuiltDependencies": [
       "better-sqlite3"
     ]
+  },
+  "devDependencies": {
+    "pm2": "^6.0.14"
   }
 }

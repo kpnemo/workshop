@@ -31,6 +31,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    console.log(`[request] ${req.method} ${req.originalUrl} → ${res.statusCode} (${ms}ms)`);
+  });
+  next();
+});
+
 // Load agents
 const agents = loadAgents(AGENTS_DIR);
 console.log(`[startup] Loaded ${agents.size} agent(s): ${[...agents.keys()].join(", ")}`);

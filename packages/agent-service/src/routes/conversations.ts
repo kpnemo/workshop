@@ -39,6 +39,7 @@ export function createConversationRouter(
   // GET /conversations - List all conversations
   router.get("/", (req: Request, res: Response) => {
     const conversations = db.listConversations(req.userId!);
+    console.log(`[conversations] Listed ${conversations.length} conversation(s) for user ${req.userId}`);
     res.json(
       conversations.map((c) => ({
         id: c.id,
@@ -66,6 +67,7 @@ export function createConversationRouter(
 
     const id = uuidv4();
     const conversation = db.createConversation(id, agentId, req.userId!);
+    console.log(`[conversations] Created conversation ${id} with agent "${agentId}"`);
     res.status(201).json({
       conversationId: conversation.id,
       agentId: conversation.agentId,
@@ -84,6 +86,7 @@ export function createConversationRouter(
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
+    console.log(`[conversations] Deleted conversation ${req.params.id}`);
     res.status(204).send();
   });
 
@@ -102,15 +105,19 @@ export function createConversationRouter(
     }
 
     const agent = agents.get(conversation.agentId)!;
+    console.log(`[message] New message in conversation ${conversation.id} (agent: "${conversation.agentId}")`);
+    console.log(`[message] User: "${message.slice(0, 100)}${message.length > 100 ? "..." : ""}"`);
 
     // Guardrail check (before SSE headers)
     if (agent.topicBoundaries) {
+      console.log(`[guardrails] Checking topic boundaries for agent "${conversation.agentId}"`);
       const guardrailResult = await checkTopicBoundary(
         message,
         agent.topicBoundaries
       );
 
       if (!guardrailResult.allowed) {
+        console.log(`[guardrails] Message BLOCKED: ${guardrailResult.message}`);
         db.addMessage(conversation.id, "user", message);
         startSSE(res);
         writeSSE(res, "blocked", { message: guardrailResult.message });
@@ -118,6 +125,7 @@ export function createConversationRouter(
         res.end();
         return;
       }
+      console.log(`[guardrails] Message allowed`);
     }
 
     // Add user message to history
@@ -133,7 +141,9 @@ export function createConversationRouter(
     }));
 
     let stream;
+    const streamStart = Date.now();
     try {
+      console.log(`[stream] Starting Claude stream (model: ${agent.model}, messages: ${claudeMessages.length})`);
       stream = getClient().messages.stream({
         model: agent.model,
         max_tokens: agent.maxTokens,
@@ -142,7 +152,7 @@ export function createConversationRouter(
         messages: claudeMessages,
       });
     } catch (err) {
-      console.error("[routes] Failed to create stream:", err);
+      console.error("[stream] Failed to create stream:", err);
       res.status(502).json({ error: "LLM service error" });
       return;
     }
@@ -162,12 +172,16 @@ export function createConversationRouter(
         }
       }
 
+      const streamMs = Date.now() - streamStart;
+      console.log(`[stream] Response complete (${fullResponse.length} chars, ${streamMs}ms)`);
+
       // Save assistant response
       db.addMessage(conversation.id, "assistant", fullResponse);
 
       // Generate title if this is the first exchange (no title yet)
       if (!conversation.title) {
         try {
+          console.log(`[title] Generating title for conversation ${conversation.id}`);
           const titleResponse = await getClient().messages.create({
             model: "claude-haiku-4-5-20251001",
             max_tokens: 20,
@@ -187,16 +201,17 @@ export function createConversationRouter(
           if (title) {
             db.setTitle(conversation.id, title);
             writeSSE(res, "title", { title });
+            console.log(`[title] Generated: "${title}"`);
           }
         } catch (err) {
-          console.error("[routes] Title generation failed:", err);
+          console.error("[title] Title generation failed:", err);
         }
       }
 
       writeSSE(res, "done", { conversationId: conversation.id });
       res.end();
     } catch (err) {
-      console.error("[routes] Stream error:", err);
+      console.error("[stream] Stream error:", err);
       writeSSE(res, "error", { message: "LLM service error" });
       writeSSE(res, "done", { conversationId: conversation.id });
       res.end();

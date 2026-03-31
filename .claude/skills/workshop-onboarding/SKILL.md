@@ -7,22 +7,23 @@ description: Set up the workshop project from scratch so participants can start 
 
 This skill walks a workshop participant through the full project setup — from install to running services — so they can start building immediately without fighting tooling.
 
-The project is a monorepo with two services:
+The project is a pnpm monorepo with two services managed by pm2:
 - **agent-service** (Express backend on port 3000)
 - **web-client** (React + Vite frontend on port 5173)
 
 ## Step 0: Diagnose current state
 
-Before running through setup steps, quickly check what's already in place. This avoids wasting time redoing work the user has already completed, and helps you jump straight to whatever is actually broken.
+Before running through setup steps, quickly check what's already in place. This avoids wasting time redoing work the user has already completed.
 
-Run these checks:
+Run these checks in parallel:
 - Does `node_modules/` exist in the project root? (indicates dependencies were installed)
 - Does `.env` exist? If so, does it have a real API key (not the `your-key-here` placeholder)?
-- Is anything already running on ports 3000 or 5173? (`lsof -ti:3000` / `lsof -ti:5173`) — if a port is in use, also verify the service responds correctly (curl it) before skipping its startup step. A process occupying the port doesn't guarantee a healthy service.
+- Is anything already running on ports 3000 or 5173? (`lsof -ti:3000` / `lsof -ti:5173`)
 - Was `pnpm` used, or did the user use `npm`? (check for `node_modules/.pnpm` — if it's missing but `node_modules` exists, the user likely used npm)
-- What Node.js version is installed? (`node --version`) — workshop participants sometimes have old versions. If below v18, warn the user early since the project may not work correctly.
+- What Node.js version is installed? (`node --version`) — if below v18, warn early
+- Are pm2 processes already running? (`pnpm pm2 list 2>/dev/null`) — if so, stop them first with `pnpm stop` before restarting to avoid port conflicts
 
-Based on what you find, skip steps that are already complete and tell the user what you're skipping and why. For example: "Looks like dependencies are already installed — skipping that step."
+Based on what you find, skip steps that are already complete and tell the user what you're skipping and why.
 
 **Important:** This project uses **pnpm**, not npm. If the user mentions they ran `npm install`, explain that the project uses pnpm workspaces so `pnpm install` is needed instead. Don't make them feel bad about it — just note that pnpm handles the monorepo dependencies correctly and re-run with pnpm.
 
@@ -39,7 +40,7 @@ If `pnpm` is not installed, offer to install it for the user. If they agree, run
 npm install -g pnpm
 ```
 
-Verify the install succeeded (exit code 0, no unresolved peer dependency errors).
+Verify the install succeeded (exit code 0, no unresolved peer dependency errors). This also installs pm2, which is used to manage the services.
 
 Skip this step if Step 0 confirmed dependencies are already correctly installed via pnpm.
 
@@ -65,47 +66,46 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 Do NOT echo the key to the terminal or include it in any visible output. Use the Edit tool to update the `.env` file directly.
 
-Note: The key will be visible in the conversation transcript when the user pastes it via AskUserQuestion — that's unavoidable. The important thing is not to run shell commands that would log it to terminal history or output.
+## Step 3: Start all services
 
-## Step 3: Start the backend
-
-Start the agent service in the background:
+If Step 0 found existing pm2 processes or something occupying ports 3000/5173, clean up first:
 
 ```bash
-pnpm --filter @new-workshop/agent-service dev
+pnpm stop 2>/dev/null
+lsof -ti:3000 | xargs kill 2>/dev/null
+lsof -ti:5173 | xargs kill 2>/dev/null
 ```
 
-Run this in the background so it doesn't block the conversation. Wait a few seconds, then verify it started by checking for the startup log message or by curling the server:
+Then start both services at once using pm2:
 
 ```bash
-curl -s http://localhost:3000/conversations | head -c 200
+pnpm pm2 start ecosystem.config.cjs
 ```
 
-If it fails, read the output for errors (missing key, port in use, etc.) and help the user fix them.
+This launches both the backend and frontend as managed background processes via the `ecosystem.config.cjs` file. pm2 handles process management, automatic restarts, and log aggregation.
 
-Skip if Step 0 found the backend already running on port 3000.
-
-## Step 4: Start the frontend
-
-Start the web client in the background:
+Wait a few seconds for both services to come up, then verify:
 
 ```bash
-pnpm --filter @new-workshop/web-client dev
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/conversations
 ```
-
-Run this in the background as well. Wait a moment for Vite to start, then verify it's running by curling the dev server:
+Expected: 401 (auth required — means the backend is alive).
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
 ```
+Expected: 200.
 
-Expected: 200. This mirrors the backend health check and catches cases where the port is occupied but Vite failed to start.
+If either check fails, read the pm2 logs for errors:
+```bash
+pnpm pm2 logs --lines 30 --nostream
+```
 
-Skip if Step 0 found the frontend already running and healthy on port 5173.
+Help the user fix any issues (missing key, port conflicts, etc.) before proceeding.
 
-## Step 5: Open the app in the browser
+## Step 4: Open the app in the browser
 
-Once both services are confirmed running, open the frontend in the user's default browser automatically. This is the payoff moment — the participant should see the working app without any manual steps.
+Once both services are confirmed running, open the frontend in the user's default browser. This is the payoff moment — the participant should see the working app without any manual steps.
 
 On macOS:
 ```bash
@@ -117,21 +117,31 @@ On Linux:
 xdg-open http://localhost:5173
 ```
 
-**Before opening**, do a final health check to make sure the page will actually load. Curl the frontend one more time — if it returns 200, open the browser. If not, wait 2-3 seconds and retry once. Only if it still fails should you fall back to telling the user to open it manually.
+Do a final health check before opening — curl the frontend one more time. If it returns 200, open the browser. If not, wait 2-3 seconds and retry once. Only fall back to telling the user to open it manually if the service genuinely isn't responding.
 
-After opening, tell the user:
+## Step 5: Orient the user
+
+After setup succeeds, present the user with everything they need to know. Check if the `agents/` directory has any markdown files and count them.
+
+Tell the user:
 
 > **You're all set!** The app should be open in your browser now.
 >
 > - Backend (API): http://localhost:3000
 > - Frontend (UI): http://localhost:5173
+>
+> You have X agent persona(s) defined in `agents/`. Try chatting with one in the UI!
+>
+> **Useful commands:**
+>
+> | Command | What it does |
+> |---------|-------------|
+> | `pnpm start` | Start services + show live logs |
+> | `pnpm stop` | Stop all services |
+> | `pnpm restart` | Restart all services |
+> | `pnpm logs` | View live logs (Ctrl+C to exit, services keep running) |
+> | `pnpm status` | Show service status table |
+
+This commands table is important — it's how participants will manage services throughout the workshop. The key thing to convey is that `pnpm start` launches services and immediately shows logs, Ctrl+C exits the log view but the services stay running in the background, and `pnpm logs` re-attaches to the log stream anytime.
 
 If any step failed and couldn't be resolved, clearly tell the user what went wrong and what they need to fix manually.
-
-## Bonus: Orient the user
-
-After setup succeeds, give the user a quick nudge on what to do next. Check if the `agents/` directory has any markdown files — if so, mention them:
-
-> You have X agent persona(s) defined in `agents/`. Try chatting with one in the UI!
-
-This small hint bridges the gap between "environment works" and "I know what to do now," which matters in a workshop setting where participants may be new to the project.
