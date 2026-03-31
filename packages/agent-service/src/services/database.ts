@@ -13,6 +13,13 @@ export class Database {
 
   private init(): void {
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
         agent_id TEXT NOT NULL,
@@ -134,6 +141,21 @@ export class Database {
     this.db
       .prepare("UPDATE conversations SET title = ? WHERE id = ?")
       .run(title, id);
+  }
+
+  createUser(id: string, email: string, hashedPassword: string): { id: string; email: string; createdAt: Date } {
+    const now = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO users (id, email, password, created_at) VALUES (?, ?, ?, ?)")
+      .run(id, email, hashedPassword, now);
+    return { id, email, createdAt: new Date(now) };
+  }
+
+  findUserByEmail(email: string): { id: string; email: string; password: string } | undefined {
+    const row = this.db
+      .prepare("SELECT id, email, password FROM users WHERE email = ?")
+      .get(email) as { id: string; email: string; password: string } | undefined;
+    return row ?? undefined;
   }
 
   close(): void {

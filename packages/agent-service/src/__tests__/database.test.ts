@@ -119,4 +119,32 @@ describe("Database", () => {
       expect(conv.title).toBe("Billing Help");
     });
   });
+
+  describe("createUser", () => {
+    it("creates a user and returns it", () => {
+      const user = db.createUser("u-1", "test@example.com", "hashed-pw");
+      expect(user.id).toBe("u-1");
+      expect(user.email).toBe("test@example.com");
+      expect(user.createdAt).toBeInstanceOf(Date);
+    });
+
+    it("throws on duplicate email", () => {
+      db.createUser("u-1", "test@example.com", "hashed-pw");
+      expect(() => db.createUser("u-2", "test@example.com", "hashed-pw")).toThrow();
+    });
+  });
+
+  describe("findUserByEmail", () => {
+    it("returns user with password hash", () => {
+      db.createUser("u-1", "test@example.com", "hashed-pw");
+      const user = db.findUserByEmail("test@example.com");
+      expect(user).toBeDefined();
+      expect(user!.id).toBe("u-1");
+      expect(user!.password).toBe("hashed-pw");
+    });
+
+    it("returns undefined for unknown email", () => {
+      expect(db.findUserByEmail("nobody@example.com")).toBeUndefined();
+    });
+  });
 });
