@@ -103,16 +103,28 @@ Expected: 200. This mirrors the backend health check and catches cases where the
 
 Skip if Step 0 found the frontend already running and healthy on port 5173.
 
-## Step 5: Present the result
+## Step 5: Open the app in the browser
 
-Once both services are confirmed running, tell the user:
+Once both services are confirmed running, open the frontend in the user's default browser automatically. This is the payoff moment — the participant should see the working app without any manual steps.
 
-> **You're all set!**
+On macOS:
+```bash
+open http://localhost:5173
+```
+
+On Linux:
+```bash
+xdg-open http://localhost:5173
+```
+
+**Before opening**, do a final health check to make sure the page will actually load. Curl the frontend one more time — if it returns 200, open the browser. If not, wait 2-3 seconds and retry once. Only if it still fails should you fall back to telling the user to open it manually.
+
+After opening, tell the user:
+
+> **You're all set!** The app should be open in your browser now.
 >
 > - Backend (API): http://localhost:3000
 > - Frontend (UI): http://localhost:5173
->
-> Open http://localhost:5173 in your browser to start using the app.
 
 If any step failed and couldn't be resolved, clearly tell the user what went wrong and what they need to fix manually.
 
