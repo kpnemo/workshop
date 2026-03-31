@@ -52,3 +52,27 @@ export function loadAgents(agentsDir: string): Map<string, AgentConfig> {
 
   return agents;
 }
+
+export function saveAgent(agentsDir: string, id: string, config: AgentConfig): void {
+  const frontMatter: Record<string, unknown> = {
+    name: config.name,
+    model: config.model,
+    maxTokens: config.maxTokens,
+    temperature: config.temperature,
+    avatar: config.avatar,
+  };
+  if (config.topicBoundaries) {
+    frontMatter.topicBoundaries = config.topicBoundaries;
+  }
+  const fileContent = matter.stringify(config.systemPrompt, frontMatter);
+  const filePath = path.join(agentsDir, `${id}.md`);
+  fs.writeFileSync(filePath, fileContent, "utf-8");
+}
+
+export function deleteAgent(agentsDir: string, id: string): void {
+  const filePath = path.join(agentsDir, `${id}.md`);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Agent file not found: ${filePath}`);
+  }
+  fs.unlinkSync(filePath);
+}
