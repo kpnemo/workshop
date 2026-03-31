@@ -10,12 +10,20 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 import { loadAgents } from "./services/agent-loader.js";
 import { Database } from "./services/database.js";
 import { createConversationRouter } from "./routes/conversations.js";
+import { createAuthRouter } from "./routes/auth.js";
+import { authMiddleware } from "./middleware/auth.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const AGENTS_DIR =
   process.env.AGENTS_DIR || path.resolve(__dirname, "../../../agents");
 const DB_PATH =
   process.env.DB_PATH || path.resolve(__dirname, "../../../packages/data/conversations.db");
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error("[startup] JWT_SECRET environment variable is required");
+  process.exit(1);
+}
 
 const app = express();
 
@@ -32,7 +40,8 @@ const db = new Database(DB_PATH);
 console.log(`[startup] Database opened at ${DB_PATH}`);
 
 // Routes
-app.use("/conversations", createConversationRouter(agents, db));
+app.use("/auth", createAuthRouter(db, JWT_SECRET));
+app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db));
 
 // Start server
 app.listen(PORT, () => {
