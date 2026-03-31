@@ -4,6 +4,10 @@ import { createConversation, sendMessage, getConversation } from "../lib/api";
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
+beforeEach(() => {
+  localStorage.clear();
+});
+
 describe("createConversation", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -174,7 +178,76 @@ describe("getConversation", () => {
 
     const result = await getConversation("conv-123");
 
-    expect(mockFetch).toHaveBeenCalledWith("/api/conversations/conv-123");
+    expect(mockFetch).toHaveBeenCalledWith("/api/conversations/conv-123", {
+      headers: {},
+    });
     expect(result.conversationId).toBe("conv-123");
+  });
+});
+
+describe("signup", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("sends POST to /api/auth/signup and returns result", async () => {
+    const { signup } = await import("../lib/api");
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          token: "jwt-token",
+          user: { id: "u-1", email: "test@example.com" },
+        }),
+    });
+
+    const result = await signup("test@example.com", "password123");
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "test@example.com", password: "password123" }),
+    });
+    expect(result.token).toBe("jwt-token");
+    expect(result.user.email).toBe("test@example.com");
+  });
+});
+
+describe("login", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("sends POST to /api/auth/login and returns result", async () => {
+    const { login } = await import("../lib/api");
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          token: "jwt-token",
+          user: { id: "u-1", email: "test@example.com" },
+        }),
+    });
+
+    const result = await login("test@example.com", "password123");
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "test@example.com", password: "password123" }),
+    });
+    expect(result.token).toBe("jwt-token");
+  });
+
+  it("throws on invalid credentials", async () => {
+    const { login } = await import("../lib/api");
+    mockFetch.mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({ error: "Invalid email or password" }),
+    });
+
+    await expect(login("test@example.com", "wrong")).rejects.toThrow(
+      "Invalid email or password"
+    );
   });
 });
