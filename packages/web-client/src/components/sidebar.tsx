@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, LogOut } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 import { ConversationItem } from "./conversation-item";
 import { ConfirmDialog } from "./confirm-dialog";
 import type { ConversationSummary } from "../types";
@@ -19,6 +20,7 @@ export function Sidebar({
   onNewChat,
   onDelete,
 }: SidebarProps) {
+  const { logout, user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -50,6 +52,13 @@ export function Sidebar({
           aria-label="New chat"
         >
           <Plus size={16} />
+        </button>
+        <button
+          onClick={logout}
+          className="mt-auto rounded p-1.5 text-muted hover:bg-background hover:text-foreground"
+          aria-label="Log out"
+        >
+          <LogOut size={16} />
         </button>
       </div>
     );
@@ -92,6 +101,20 @@ export function Sidebar({
                 }}
               />
             ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-border px-3 py-2">
+          <div className="flex items-center justify-between">
+            <span className="truncate text-xs text-muted">{user?.email}</span>
+            <button
+              onClick={logout}
+              className="rounded p-1.5 text-muted hover:bg-background hover:text-foreground"
+              aria-label="Log out"
+            >
+              <LogOut size={14} />
+            </button>
           </div>
         </div>
       </div>

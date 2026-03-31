@@ -1,8 +1,10 @@
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AuthPage } from "./components/AuthPage";
 import { useChat } from "./hooks/use-chat";
 import { Sidebar } from "./components/sidebar";
 import { ChatContainer } from "./components/chat-container";
 
-export default function App() {
+function AuthenticatedApp() {
   const { state, sendMessage, startNewChat, selectConversation, deleteConversation } = useChat();
 
   return (
@@ -24,5 +26,31 @@ export default function App() {
         onRetry={startNewChat}
       />
     </div>
+  );
+}
+
+function AppContent() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
