@@ -11,6 +11,7 @@ import { loadAgents } from "./services/agent-loader.js";
 import { Database } from "./services/database.js";
 import { createConversationRouter } from "./routes/conversations.js";
 import { createAuthRouter } from "./routes/auth.js";
+import { createAgentsRouter } from "./routes/agents.js";
 import { authMiddleware } from "./middleware/auth.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -51,6 +52,7 @@ console.log(`[startup] Database opened at ${DB_PATH}`);
 
 // Routes
 app.use("/auth", createAuthRouter(db, JWT_SECRET));
+app.use("/agents", createAgentsRouter(agents, AGENTS_DIR));
 app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db));
 
 // Start server
