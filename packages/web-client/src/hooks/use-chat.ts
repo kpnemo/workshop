@@ -9,7 +9,17 @@ import {
 } from "../lib/api";
 import type { Message, ChatState } from "../types";
 
-export function useChat() {
+const LAST_AGENT_KEY = "lastAgentId";
+
+function getLastAgentId(): string | null {
+  return localStorage.getItem(LAST_AGENT_KEY);
+}
+
+function setLastAgentId(id: string): void {
+  localStorage.setItem(LAST_AGENT_KEY, id);
+}
+
+export function useChat(defaultAgentId: string | null) {
   const [state, setState] = useState<ChatState>({
     conversationId: null,
     messages: [],
@@ -18,6 +28,10 @@ export function useChat() {
     isConnecting: true,
     error: null,
   });
+
+  const resolveAgentId = useCallback((): string | null => {
+    return getLastAgentId() || defaultAgentId;
+  }, [defaultAgentId]);
 
   const loadConversations = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
@@ -40,7 +54,13 @@ export function useChat() {
           isConnecting: false,
         }));
       } else {
-        const res = await createConversation("support-bot");
+        const agentId = resolveAgentId();
+        if (!agentId) {
+          setState((s) => ({ ...s, conversations: [], isConnecting: false }));
+          return;
+        }
+        const res = await createConversation(agentId);
+        setLastAgentId(agentId);
         const updatedList = await listConversations();
         setState((s) => ({
           ...s,
@@ -57,7 +77,7 @@ export function useChat() {
         error: err instanceof Error ? err.message : "Failed to connect",
       }));
     }
-  }, []);
+  }, [resolveAgentId]);
 
   useEffect(() => {
     loadConversations();
@@ -102,7 +122,6 @@ export function useChat() {
     []
   );
 
-  // When active conversation becomes null, select next or create new
   useEffect(() => {
     if (state.isConnecting || state.conversationId !== null) return;
 
@@ -110,8 +129,11 @@ export function useChat() {
       selectConversation(state.conversations[0].id);
     } else {
       (async () => {
+        const agentId = resolveAgentId();
+        if (!agentId) return;
         try {
-          const res = await createConversation("support-bot");
+          const res = await createConversation(agentId);
+          setLastAgentId(agentId);
           const updatedList = await listConversations();
           setState((s) => ({
             ...s,
@@ -127,32 +149,24 @@ export function useChat() {
         }
       })();
     }
-  }, [state.conversationId, state.conversations, state.isConnecting, selectConversation]);
+  }, [state.conversationId, state.conversations, state.isConnecting, selectConversation, resolveAgentId]);
 
   const sendMessage = useCallback(
     (text: string) => {
       if (!state.conversationId || state.isStreaming) return;
 
       const userMessage: Message = {
-        id: uuidv4(),
-        role: "user",
-        content: text,
-        timestamp: new Date(),
+        id: uuidv4(), role: "user", content: text, timestamp: new Date(),
       };
-
       const assistantMessageId = uuidv4();
       const assistantMessage: Message = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: "",
-        timestamp: new Date(),
+        id: assistantMessageId, role: "assistant", content: "", timestamp: new Date(),
       };
 
       setState((s) => ({
         ...s,
         messages: [...s.messages, userMessage, assistantMessage],
-        isStreaming: true,
-        error: null,
+        isStreaming: true, error: null,
       }));
 
       apiSendMessage(state.conversationId, text, {
@@ -160,25 +174,15 @@ export function useChat() {
           setState((s) => ({
             ...s,
             messages: s.messages.map((m) =>
-              m.id === assistantMessageId
-                ? { ...m, content: m.content + deltaText }
-                : m
+              m.id === assistantMessageId ? { ...m, content: m.content + deltaText } : m
             ),
           }));
         },
         onBlocked: (message) => {
-          const systemMessage: Message = {
-            id: uuidv4(),
-            role: "system",
-            content: message,
-            timestamp: new Date(),
-          };
+          const systemMessage: Message = { id: uuidv4(), role: "system", content: message, timestamp: new Date() };
           setState((s) => ({
             ...s,
-            messages: [
-              ...s.messages.filter((m) => m.id !== assistantMessageId),
-              systemMessage,
-            ],
+            messages: [...s.messages.filter((m) => m.id !== assistantMessageId), systemMessage],
           }));
         },
         onError: (message) => {
@@ -214,16 +218,13 @@ export function useChat() {
     [state.conversationId, state.isStreaming]
   );
 
-  const startNewChat = useCallback(async () => {
-    setState((s) => ({
-      ...s,
-      messages: [],
-      isConnecting: true,
-      error: null,
-      isStreaming: false,
-    }));
+  const startNewChat = useCallback(async (agentId?: string) => {
+    const resolvedId = agentId || resolveAgentId();
+    if (!resolvedId) return;
+    setState((s) => ({ ...s, messages: [], isConnecting: true, error: null, isStreaming: false }));
     try {
-      const res = await createConversation("support-bot");
+      const res = await createConversation(resolvedId);
+      setLastAgentId(resolvedId);
       const updatedList = await listConversations();
       setState((s) => ({
         ...s,
@@ -238,7 +239,31 @@ export function useChat() {
         error: err instanceof Error ? err.message : "Failed to connect",
       }));
     }
-  }, []);
+  }, [resolveAgentId]);
 
-  return { state, sendMessage, startNewChat, selectConversation, deleteConversation };
+  const switchAgent = useCallback(
+    async (agentId: string) => {
+      if (state.conversationId) {
+        const hasUserMessages = state.messages.some((m) => m.role === "user");
+        if (!hasUserMessages) {
+          await apiDeleteConversation(state.conversationId);
+        }
+      }
+      await startNewChat(agentId);
+    },
+    [state.conversationId, state.messages, startNewChat]
+  );
+
+  const currentAgentId =
+    state.conversations.find((c) => c.id === state.conversationId)?.agentId ?? resolveAgentId() ?? "";
+
+  return {
+    state,
+    currentAgentId,
+    sendMessage,
+    startNewChat,
+    selectConversation,
+    deleteConversation,
+    switchAgent,
+  };
 }
