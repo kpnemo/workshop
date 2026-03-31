@@ -3,6 +3,9 @@ name: Support Bot
 model: claude-sonnet-4-20250514
 maxTokens: 1024
 temperature: 0.7
+avatar:
+  emoji: "🤖"
+  color: "#6c5ce7"
 topicBoundaries:
   allowed:
     - "product questions"

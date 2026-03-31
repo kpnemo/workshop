@@ -120,4 +120,33 @@ Real.`;
     expect(agents.size).toBe(1);
     expect(agents.has("real")).toBe(true);
   });
+
+  it("parses avatar when present", () => {
+    const md = `---
+name: Custom Bot
+model: claude-sonnet-4-20250514
+avatar:
+  emoji: "🎨"
+  color: "#fd79a8"
+---
+
+Custom bot.`;
+    fs.writeFileSync(path.join(tmpDir, "custom.md"), md);
+    const agents = loadAgents(tmpDir);
+    const agent = agents.get("custom")!;
+    expect(agent.avatar).toEqual({ emoji: "🎨", color: "#fd79a8" });
+  });
+
+  it("applies default avatar when not specified", () => {
+    const md = `---
+name: No Avatar Bot
+model: claude-sonnet-4-20250514
+---
+
+No avatar.`;
+    fs.writeFileSync(path.join(tmpDir, "no-avatar.md"), md);
+    const agents = loadAgents(tmpDir);
+    const agent = agents.get("no-avatar")!;
+    expect(agent.avatar).toEqual({ emoji: "🤖", color: "#6c5ce7" });
+  });
 });

@@ -37,6 +37,10 @@ export function loadAgents(agentsDir: string): Map<string, AgentConfig> {
         maxTokens: data.maxTokens ?? 1024,
         temperature: data.temperature ?? 1.0,
         systemPrompt: content.trim(),
+        avatar: {
+          emoji: data.avatar?.emoji ?? "🤖",
+          color: data.avatar?.color ?? "#6c5ce7",
+        },
         topicBoundaries: data.topicBoundaries,
       };
 

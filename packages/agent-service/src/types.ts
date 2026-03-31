@@ -4,6 +4,11 @@ export interface TopicBoundaries {
   boundaryMessage: string;
 }
 
+export interface Avatar {
+  emoji: string;
+  color: string;
+}
+
 export interface AgentConfig {
   id: string;
   name: string;
@@ -11,6 +16,7 @@ export interface AgentConfig {
   maxTokens: number;
   temperature: number;
   systemPrompt: string;
+  avatar: Avatar;
   topicBoundaries?: TopicBoundaries;
 }
 
