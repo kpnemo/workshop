@@ -36,3 +36,15 @@ export interface ConversationSummary {
   updatedAt: Date;
   messageCount: number;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  createdAt: Date;
+}
+
+declare module "express-serve-static-core" {
+  interface Request {
+    userId?: string;
+  }
+}
