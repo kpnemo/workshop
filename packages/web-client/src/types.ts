@@ -47,3 +47,45 @@ export interface SendMessageCallbacks {
   onTitle: (title: string) => void;
   onDone: () => void;
 }
+
+export interface AgentAvatar {
+  emoji: string;
+  color: string;
+}
+
+export interface AgentSummary {
+  id: string;
+  name: string;
+  model: string;
+  avatar: AgentAvatar;
+  hasGuardrails: boolean;
+}
+
+export interface AgentConfig {
+  id: string;
+  name: string;
+  model: string;
+  maxTokens: number;
+  temperature: number;
+  systemPrompt: string;
+  avatar: AgentAvatar;
+  topicBoundaries?: {
+    allowed: string[];
+    blocked: string[];
+    boundaryMessage: string;
+  };
+}
+
+export interface CreateAgentInput {
+  name: string;
+  systemPrompt: string;
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
+  avatar?: AgentAvatar;
+  topicBoundaries?: {
+    allowed: string[];
+    blocked: string[];
+    boundaryMessage: string;
+  };
+}
