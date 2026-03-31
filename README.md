@@ -20,9 +20,10 @@ cp .env.example .env
 # Edit .env and add your Anthropic API key
 ```
 
+Start both backend and frontend with a single command:
+
 ```bash
-pnpm --filter @new-workshop/agent-service dev
-pnpm --filter @new-workshop/web-client dev
+pnpm start
 ```
 
 - Backend (API): http://localhost:3000

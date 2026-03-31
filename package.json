@@ -1,7 +1,9 @@
 {
   "name": "new-workshop",
   "private": true,
-  "scripts": {},
+  "scripts": {
+    "start": "pnpm -r --parallel dev"
+  },
   "engines": {
     "node": ">=20"
   },
