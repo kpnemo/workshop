@@ -1,7 +1,8 @@
 import { MessageList } from "./message-list";
 import { ChatInput } from "./chat-input";
+import { AgentSelector } from "./agent-selector";
 import { Button } from "./ui/button";
-import type { Message } from "../types";
+import type { Message, AgentSummary } from "../types";
 
 interface ChatContainerProps {
   conversationId: string | null;
@@ -9,6 +10,9 @@ interface ChatContainerProps {
   isStreaming: boolean;
   isConnecting: boolean;
   error: string | null;
+  agents: AgentSummary[];
+  currentAgentId: string;
+  onAgentChange: (agentId: string) => void;
   onSend: (text: string) => void;
   onRetry: () => void;
 }
@@ -19,6 +23,9 @@ export function ChatContainer({
   isStreaming,
   isConnecting,
   error,
+  agents,
+  currentAgentId,
+  onAgentChange,
   onSend,
   onRetry,
 }: ChatContainerProps) {
@@ -39,26 +46,22 @@ export function ChatContainer({
     );
   }
 
+  const hasMessages = messages.some((m) => m.role === "user");
+
   return (
     <div className="flex flex-1 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm text-white">
-            S
-          </div>
-          <div>
-            <div className="text-sm font-semibold">Support Bot</div>
-            <div className="text-xs text-success">Online</div>
-          </div>
-        </div>
+        <AgentSelector
+          agents={agents}
+          currentAgentId={currentAgentId}
+          locked={hasMessages}
+          onSelect={onAgentChange}
+        />
       </div>
 
       {/* Messages */}
-      <MessageList
-        messages={messages}
-        isStreaming={isStreaming}
-      />
+      <MessageList messages={messages} isStreaming={isStreaming} />
 
       {/* Error banner */}
       {error && conversationId && (
@@ -68,10 +71,7 @@ export function ChatContainer({
       )}
 
       {/* Input */}
-      <ChatInput
-        onSend={onSend}
-        disabled={isStreaming || isConnecting}
-      />
+      <ChatInput onSend={onSend} disabled={isStreaming || isConnecting} />
     </div>
   );
 }

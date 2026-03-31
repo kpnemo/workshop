@@ -5,11 +5,13 @@ import * as api from "../lib/api";
 
 vi.mock("../lib/api");
 
+const DEFAULT_AGENT_ID = "support-bot";
+
 describe("useChat", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    // listConversations returns empty → triggers auto-create flow
-    vi.mocked(api.listConversations).mockResolvedValue([]);
+    // listConversations returns empty first → triggers auto-create flow
+    vi.mocked(api.listConversations).mockResolvedValueOnce([]);
     vi.mocked(api.createConversation).mockResolvedValue({
       conversationId: "conv-123",
       agentId: "support-bot",
@@ -28,7 +30,7 @@ describe("useChat", () => {
   });
 
   it("creates a conversation on mount", async () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
     await waitFor(() => {
       expect(result.current.state.conversationId).toBe("conv-123");
       expect(result.current.state.isConnecting).toBe(false);
@@ -37,7 +39,7 @@ describe("useChat", () => {
   });
 
   it("sets isConnecting true initially", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
     expect(result.current.state.isConnecting).toBe(true);
   });
 
@@ -45,7 +47,7 @@ describe("useChat", () => {
     vi.mocked(api.sendMessage).mockImplementation(async (_id, _msg, cb) => {
       cb.onDone();
     });
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
     await waitFor(() => {
       expect(result.current.state.conversationId).toBe("conv-123");
     });
@@ -62,7 +64,7 @@ describe("useChat", () => {
       cb.onDelta(" there");
       cb.onDone();
     });
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
     await waitFor(() => {
       expect(result.current.state.conversationId).toBe("conv-123");
     });
@@ -83,7 +85,7 @@ describe("useChat", () => {
       cb.onBlocked("Stay on topic.");
       cb.onDone();
     });
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
     await waitFor(() => {
       expect(result.current.state.conversationId).toBe("conv-123");
     });
@@ -100,10 +102,12 @@ describe("useChat", () => {
   });
 
   it("sets error on connection failure", async () => {
+    vi.mocked(api.listConversations).mockReset();
+    vi.mocked(api.listConversations).mockResolvedValueOnce([]);
     vi.mocked(api.createConversation).mockRejectedValue(
       new Error("Network error")
     );
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
     await waitFor(() => {
       expect(result.current.state.error).toBe("Network error");
       expect(result.current.state.isConnecting).toBe(false);
@@ -115,7 +119,7 @@ describe("useChat", () => {
       cb.onDelta("Reply");
       cb.onDone();
     });
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
     await waitFor(() => {
       expect(result.current.state.conversationId).toBe("conv-123");
     });
