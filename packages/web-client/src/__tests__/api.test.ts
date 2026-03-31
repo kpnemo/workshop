@@ -243,7 +243,7 @@ describe("login", () => {
     const { login } = await import("../lib/api");
     mockFetch.mockResolvedValue({
       ok: false,
-      json: () => Promise.resolve({ error: "Invalid email or password" }),
+      text: () => Promise.resolve(JSON.stringify({ error: "Invalid email or password" })),
     });
 
     await expect(login("test@example.com", "wrong")).rejects.toThrow(

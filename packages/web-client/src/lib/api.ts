@@ -38,8 +38,14 @@ export async function signup(
   });
 
   if (!res.ok) {
-    const body = await res.json();
-    throw new Error(body.error || "Signup failed");
+    const text = await res.text();
+    try {
+      const body = JSON.parse(text);
+      throw new Error(body.error || "Signup failed");
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error("Signup failed — server unavailable");
+      throw e;
+    }
   }
 
   return res.json();
@@ -56,8 +62,14 @@ export async function login(
   });
 
   if (!res.ok) {
-    const body = await res.json();
-    throw new Error(body.error || "Login failed");
+    const text = await res.text();
+    try {
+      const body = JSON.parse(text);
+      throw new Error(body.error || "Login failed");
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error("Login failed — server unavailable");
+      throw e;
+    }
   }
 
   return res.json();
