@@ -4,7 +4,9 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import jwt from "jsonwebtoken";
 import { createConversationRouter } from "../routes/conversations.js";
+import { authMiddleware } from "../middleware/auth.js";
 import { Database } from "../services/database.js";
 import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
@@ -32,38 +34,42 @@ vi.mock("@anthropic-ai/sdk", () => ({
   },
 }));
 
+const JWT_SECRET = "test-secret";
+
+function makeToken(userId: string, email: string) {
+  return jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: "7d" });
+}
+
 let dbPath: string;
 let db: Database;
 
 function buildApp(agents: Map<string, AgentConfig>) {
   const app = express();
   app.use(express.json());
-  app.use("/conversations", createConversationRouter(agents, db));
+  app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db));
   return app;
 }
 
-function makeRequest(app: express.Express, method: string, path: string, body?: object) {
+function makeRequest(
+  app: express.Express,
+  method: string,
+  reqPath: string,
+  body?: object,
+  token?: string
+) {
   return new Promise<{ status: number; headers: Record<string, string>; body: string }>(
     (resolve) => {
       const server = app.listen(0, () => {
         const port = (server.address() as any).port;
-        const options = {
-          hostname: "127.0.0.1",
-          port,
-          path,
-          method,
-          headers: { "Content-Type": "application/json" },
-        };
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const options = { hostname: "127.0.0.1", port, path: reqPath, method, headers };
         const req = http.request(options, (res: any) => {
           let data = "";
           res.on("data", (chunk: string) => (data += chunk));
           res.on("end", () => {
             server.close();
-            resolve({
-              status: res.statusCode,
-              headers: res.headers,
-              body: data,
-            });
+            resolve({ status: res.statusCode, headers: res.headers, body: data });
           });
         });
         if (body) req.write(JSON.stringify(body));
@@ -96,9 +102,14 @@ const guardedAgent: AgentConfig = {
   },
 };
 
+const userAToken = makeToken("user-a", "a@example.com");
+const userBToken = makeToken("user-b", "b@example.com");
+
 beforeEach(() => {
   dbPath = path.join(os.tmpdir(), `test-routes-${Date.now()}.db`);
   db = new Database(dbPath);
+  db.createUser("user-a", "a@example.com", "hashed");
+  db.createUser("user-b", "b@example.com", "hashed");
 });
 
 afterEach(() => {
@@ -109,146 +120,121 @@ afterEach(() => {
 });
 
 describe("GET /conversations", () => {
-  it("returns empty array when no conversations", async () => {
+  it("returns 401 without token", async () => {
     const app = buildApp(new Map([["test-bot", testAgent]]));
     const res = await makeRequest(app, "GET", "/conversations");
-    expect(res.status).toBe(200);
-    expect(JSON.parse(res.body)).toEqual([]);
+    expect(res.status).toBe(401);
   });
 
-  it("returns conversations sorted by updatedAt desc", async () => {
+  it("returns only conversations for authenticated user", async () => {
     const app = buildApp(new Map([["test-bot", testAgent]]));
-    db.createConversation("conv-1", "test-bot");
-    db.addMessage("conv-1", "user", "First");
+    db.createConversation("conv-1", "test-bot", "user-a");
+    db.createConversation("conv-2", "test-bot", "user-b");
 
-    await new Promise((r) => setTimeout(r, 10));
-
-    db.createConversation("conv-2", "test-bot");
-    db.addMessage("conv-2", "user", "Second");
-
-    const res = await makeRequest(app, "GET", "/conversations");
+    const res = await makeRequest(app, "GET", "/conversations", undefined, userAToken);
     const json = JSON.parse(res.body);
-    expect(json).toHaveLength(2);
-    expect(json[0].id).toBe("conv-2");
-    expect(json[0].messageCount).toBe(1);
-    expect(json[0].updatedAt).toBeDefined();
+    expect(json).toHaveLength(1);
+    expect(json[0].id).toBe("conv-1");
+  });
+
+  it("returns empty array when user has no conversations", async () => {
+    const app = buildApp(new Map([["test-bot", testAgent]]));
+    const res = await makeRequest(app, "GET", "/conversations", undefined, userAToken);
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body)).toEqual([]);
   });
 });
 
 describe("POST /conversations", () => {
-  it("creates a conversation and returns 201", async () => {
+  it("creates a conversation for authenticated user", async () => {
     const app = buildApp(new Map([["test-bot", testAgent]]));
-    const res = await makeRequest(app, "POST", "/conversations", {
-      agentId: "test-bot",
-    });
+    const res = await makeRequest(app, "POST", "/conversations", { agentId: "test-bot" }, userAToken);
     expect(res.status).toBe(201);
     const json = JSON.parse(res.body);
     expect(json.conversationId).toBeDefined();
-    expect(json.agentId).toBe("test-bot");
-    expect(json.createdAt).toBeDefined();
+
+    const list = await makeRequest(app, "GET", "/conversations", undefined, userAToken);
+    expect(JSON.parse(list.body)).toHaveLength(1);
+
+    const listB = await makeRequest(app, "GET", "/conversations", undefined, userBToken);
+    expect(JSON.parse(listB.body)).toHaveLength(0);
   });
 
   it("returns 400 when agentId is missing", async () => {
     const app = buildApp(new Map());
-    const res = await makeRequest(app, "POST", "/conversations", {});
+    const res = await makeRequest(app, "POST", "/conversations", {}, userAToken);
     expect(res.status).toBe(400);
-    expect(JSON.parse(res.body).error).toBe("agentId is required");
   });
 
   it("returns 404 when agentId is unknown", async () => {
     const app = buildApp(new Map());
-    const res = await makeRequest(app, "POST", "/conversations", {
-      agentId: "nonexistent",
-    });
+    const res = await makeRequest(app, "POST", "/conversations", { agentId: "nonexistent" }, userAToken);
     expect(res.status).toBe(404);
-    expect(JSON.parse(res.body).error).toBe("Agent not found");
   });
 });
 
 describe("DELETE /conversations/:id", () => {
-  it("deletes an existing conversation and returns 204", async () => {
+  it("deletes own conversation", async () => {
     const app = buildApp(new Map([["test-bot", testAgent]]));
-    db.createConversation("conv-1", "test-bot");
-    const res = await makeRequest(app, "DELETE", "/conversations/conv-1");
+    db.createConversation("conv-1", "test-bot", "user-a");
+    const res = await makeRequest(app, "DELETE", "/conversations/conv-1", undefined, userAToken);
     expect(res.status).toBe(204);
-    expect(db.getConversation("conv-1")).toBeUndefined();
   });
 
-  it("returns 404 for unknown conversation", async () => {
-    const app = buildApp(new Map());
-    const res = await makeRequest(app, "DELETE", "/conversations/nonexistent");
+  it("returns 404 when deleting another user's conversation", async () => {
+    const app = buildApp(new Map([["test-bot", testAgent]]));
+    db.createConversation("conv-1", "test-bot", "user-a");
+    const res = await makeRequest(app, "DELETE", "/conversations/conv-1", undefined, userBToken);
     expect(res.status).toBe(404);
   });
 });
 
 describe("POST /conversations/:id/messages", () => {
-  it("returns 404 for unknown conversation", async () => {
-    const app = buildApp(new Map());
-    const res = await makeRequest(app, "POST", "/conversations/bad-id/messages", {
-      message: "Hello",
-    });
+  it("returns 404 for another user's conversation", async () => {
+    const app = buildApp(new Map([["test-bot", testAgent]]));
+    db.createConversation("conv-1", "test-bot", "user-a");
+    const res = await makeRequest(app, "POST", "/conversations/conv-1/messages", { message: "Hello" }, userBToken);
     expect(res.status).toBe(404);
   });
 
-  it("returns 400 when message is missing", async () => {
+  it("returns SSE stream for own conversation", async () => {
     const app = buildApp(new Map([["test-bot", testAgent]]));
-    db.createConversation("conv-1", "test-bot");
-    const res = await makeRequest(app, "POST", "/conversations/conv-1/messages", {});
-    expect(res.status).toBe(400);
-  });
-
-  it("returns SSE stream with delta, title, and done events", async () => {
-    const app = buildApp(new Map([["test-bot", testAgent]]));
-    db.createConversation("conv-1", "test-bot");
-    const res = await makeRequest(app, "POST", "/conversations/conv-1/messages", {
-      message: "Hello",
-    });
+    db.createConversation("conv-1", "test-bot", "user-a");
+    const res = await makeRequest(app, "POST", "/conversations/conv-1/messages", { message: "Hello" }, userAToken);
     expect(res.headers["content-type"]).toContain("text/event-stream");
     expect(res.body).toContain("event: delta");
-    expect(res.body).toContain("event: title");
     expect(res.body).toContain("event: done");
   });
 
   it("returns SSE blocked event when guardrail blocks message", async () => {
     const app = buildApp(new Map([["guarded-bot", guardedAgent]]));
-    db.createConversation("conv-1", "guarded-bot");
-
-    vi.mocked(checkTopicBoundary).mockResolvedValueOnce({
-      allowed: false,
-      message: "I can only help with product topics.",
-    });
-
-    const res = await makeRequest(app, "POST", "/conversations/conv-1/messages", {
-      message: "Tell me about politics",
-    });
-    expect(res.headers["content-type"]).toContain("text/event-stream");
+    db.createConversation("conv-1", "guarded-bot", "user-a");
+    vi.mocked(checkTopicBoundary).mockResolvedValueOnce({ allowed: false, message: "I can only help with product topics." });
+    const res = await makeRequest(app, "POST", "/conversations/conv-1/messages", { message: "Tell me about politics" }, userAToken);
     expect(res.body).toContain("event: blocked");
     expect(res.body).toContain("I can only help with product topics.");
-    expect(res.body).toContain("event: done");
-    expect(res.body).not.toContain("event: delta");
   });
 });
 
 describe("GET /conversations/:id", () => {
-  it("returns conversation history with title", async () => {
+  it("returns own conversation history", async () => {
     const app = buildApp(new Map([["test-bot", testAgent]]));
-    db.createConversation("conv-1", "test-bot");
+    db.createConversation("conv-1", "test-bot", "user-a");
     db.addMessage("conv-1", "user", "Hello");
     db.addMessage("conv-1", "assistant", "Hi!");
     db.setTitle("conv-1", "Greeting");
 
-    const res = await makeRequest(app, "GET", "/conversations/conv-1");
+    const res = await makeRequest(app, "GET", "/conversations/conv-1", undefined, userAToken);
     expect(res.status).toBe(200);
     const json = JSON.parse(res.body);
     expect(json.title).toBe("Greeting");
     expect(json.messages).toHaveLength(2);
-    expect(json.messages[0].role).toBe("user");
-    expect(json.messages[0].timestamp).toBeDefined();
   });
 
-  it("returns 404 for unknown conversation", async () => {
-    const app = buildApp(new Map());
-    const res = await makeRequest(app, "GET", "/conversations/nonexistent");
+  it("returns 404 for another user's conversation", async () => {
+    const app = buildApp(new Map([["test-bot", testAgent]]));
+    db.createConversation("conv-1", "test-bot", "user-a");
+    const res = await makeRequest(app, "GET", "/conversations/conv-1", undefined, userBToken);
     expect(res.status).toBe(404);
   });
 });

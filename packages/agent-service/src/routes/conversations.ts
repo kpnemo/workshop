@@ -20,6 +20,11 @@ export function createConversationRouter(
 ): Router {
   const router = Router();
 
+  function verifyOwnership(conversationId: string, userId: string): boolean {
+    const ownerId = db.getConversationOwnerId(conversationId);
+    return ownerId === userId;
+  }
+
   function startSSE(res: Response) {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -32,8 +37,8 @@ export function createConversationRouter(
   }
 
   // GET /conversations - List all conversations
-  router.get("/", (_req: Request, res: Response) => {
-    const conversations = db.listConversations();
+  router.get("/", (req: Request, res: Response) => {
+    const conversations = db.listConversations(req.userId!);
     res.json(
       conversations.map((c) => ({
         id: c.id,
@@ -60,7 +65,7 @@ export function createConversationRouter(
     }
 
     const id = uuidv4();
-    const conversation = db.createConversation(id, agentId);
+    const conversation = db.createConversation(id, agentId, req.userId!);
     res.status(201).json({
       conversationId: conversation.id,
       agentId: conversation.agentId,
@@ -70,6 +75,10 @@ export function createConversationRouter(
 
   // DELETE /conversations/:id - Delete a conversation
   router.delete("/:id", (req: Request, res: Response) => {
+    if (!verifyOwnership(req.params.id, req.userId!)) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
     const deleted = db.deleteConversation(req.params.id as string);
     if (!deleted) {
       res.status(404).json({ error: "Conversation not found" });
@@ -80,11 +89,11 @@ export function createConversationRouter(
 
   // POST /conversations/:id/messages - Send a message (SSE response)
   router.post("/:id/messages", async (req: Request, res: Response) => {
-    const conversation = db.getConversation(req.params.id as string);
-    if (!conversation) {
+    if (!verifyOwnership(req.params.id, req.userId!)) {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
+    const conversation = db.getConversation(req.params.id)!;
 
     const { message } = req.body;
     if (!message || (typeof message === "string" && message.trim() === "")) {
@@ -196,11 +205,11 @@ export function createConversationRouter(
 
   // GET /conversations/:id - Get conversation history
   router.get("/:id", (req: Request, res: Response) => {
-    const conversation = db.getConversation(req.params.id as string);
-    if (!conversation) {
+    if (!verifyOwnership(req.params.id, req.userId!)) {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
+    const conversation = db.getConversation(req.params.id)!;
 
     res.json({
       conversationId: conversation.id,
