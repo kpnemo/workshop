@@ -12,17 +12,21 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.21.0",
     "gray-matter": "^4.0.3",
+    "jsonwebtoken": "^9.0.3",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
