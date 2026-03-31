@@ -21,8 +21,9 @@ describe("Database", () => {
   });
 
   describe("createConversation", () => {
-    it("creates a conversation and returns it", () => {
-      const conv = db.createConversation("conv-1", "support-bot");
+    it("creates a conversation with userId and returns it", () => {
+      db.createUser("u-1", "test@example.com", "hashed-pw");
+      const conv = db.createConversation("conv-1", "support-bot", "u-1");
       expect(conv.id).toBe("conv-1");
       expect(conv.agentId).toBe("support-bot");
       expect(conv.title).toBeNull();
@@ -34,7 +35,8 @@ describe("Database", () => {
 
   describe("getConversation", () => {
     it("returns conversation with messages", () => {
-      db.createConversation("conv-1", "support-bot");
+      db.createUser("u-1", "test@example.com", "pw");
+      db.createConversation("conv-1", "support-bot", "u-1");
       db.addMessage("conv-1", "user", "Hello");
       db.addMessage("conv-1", "assistant", "Hi there!");
 
@@ -54,30 +56,27 @@ describe("Database", () => {
   });
 
   describe("listConversations", () => {
-    it("returns conversations sorted by updatedAt desc", async () => {
-      db.createConversation("conv-1", "support-bot");
-      db.addMessage("conv-1", "user", "First");
+    it("returns only conversations for the given user", () => {
+      db.createUser("u-1", "a@example.com", "pw");
+      db.createUser("u-2", "b@example.com", "pw");
+      db.createConversation("conv-1", "support-bot", "u-1");
+      db.createConversation("conv-2", "support-bot", "u-2");
 
-      await new Promise((r) => setTimeout(r, 10));
-
-      db.createConversation("conv-2", "support-bot");
-      db.addMessage("conv-2", "user", "Second");
-
-      const list = db.listConversations();
-      expect(list).toHaveLength(2);
-      expect(list[0].id).toBe("conv-2");
-      expect(list[1].id).toBe("conv-1");
-      expect(list[0].messageCount).toBe(1);
+      const list = db.listConversations("u-1");
+      expect(list).toHaveLength(1);
+      expect(list[0].id).toBe("conv-1");
     });
 
-    it("returns empty array when no conversations", () => {
-      expect(db.listConversations()).toEqual([]);
+    it("returns empty array when user has no conversations", () => {
+      db.createUser("u-1", "a@example.com", "pw");
+      expect(db.listConversations("u-1")).toEqual([]);
     });
   });
 
   describe("addMessage", () => {
     it("inserts a message and updates conversation updatedAt", () => {
-      const conv = db.createConversation("conv-1", "support-bot");
+      db.createUser("u-1", "test@example.com", "pw");
+      const conv = db.createConversation("conv-1", "support-bot", "u-1");
       const beforeUpdate = conv.updatedAt;
 
       db.addMessage("conv-1", "user", "Hello");
@@ -96,13 +95,14 @@ describe("Database", () => {
 
   describe("deleteConversation", () => {
     it("deletes conversation and its messages", () => {
-      db.createConversation("conv-1", "support-bot");
+      db.createUser("u-1", "test@example.com", "pw");
+      db.createConversation("conv-1", "support-bot", "u-1");
       db.addMessage("conv-1", "user", "Hello");
 
       db.deleteConversation("conv-1");
 
       expect(db.getConversation("conv-1")).toBeUndefined();
-      expect(db.listConversations()).toEqual([]);
+      expect(db.listConversations("u-1")).toEqual([]);
     });
 
     it("returns false for unknown id", () => {
@@ -112,7 +112,8 @@ describe("Database", () => {
 
   describe("setTitle", () => {
     it("updates the conversation title", () => {
-      db.createConversation("conv-1", "support-bot");
+      db.createUser("u-1", "test@example.com", "pw");
+      db.createConversation("conv-1", "support-bot", "u-1");
       db.setTitle("conv-1", "Billing Help");
 
       const conv = db.getConversation("conv-1")!;
@@ -145,6 +146,18 @@ describe("Database", () => {
 
     it("returns undefined for unknown email", () => {
       expect(db.findUserByEmail("nobody@example.com")).toBeUndefined();
+    });
+  });
+
+  describe("getConversationOwnerId", () => {
+    it("returns the owner userId", () => {
+      db.createUser("u-1", "test@example.com", "pw");
+      db.createConversation("conv-1", "support-bot", "u-1");
+      expect(db.getConversationOwnerId("conv-1")).toBe("u-1");
+    });
+
+    it("returns undefined for unknown conversation", () => {
+      expect(db.getConversationOwnerId("nonexistent")).toBeUndefined();
     });
   });
 });

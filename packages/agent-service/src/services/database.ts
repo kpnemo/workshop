@@ -9,6 +9,7 @@ export class Database {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.init();
+    this.migrate();
   }
 
   private init(): void {
@@ -23,6 +24,7 @@ export class Database {
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
         agent_id TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id),
         title TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -40,22 +42,12 @@ export class Database {
     `);
   }
 
-  createConversation(id: string, agentId: string): Conversation {
+  createConversation(id: string, agentId: string, userId: string): Conversation {
     const now = new Date().toISOString();
     this.db
-      .prepare(
-        "INSERT INTO conversations (id, agent_id, title, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)"
-      )
-      .run(id, agentId, now, now);
-
-    return {
-      id,
-      agentId,
-      title: null,
-      messages: [],
-      createdAt: new Date(now),
-      updatedAt: new Date(now),
-    };
+      .prepare("INSERT INTO conversations (id, agent_id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, ?)")
+      .run(id, agentId, userId, now, now);
+    return { id, agentId, title: null, messages: [], createdAt: new Date(now), updatedAt: new Date(now) };
   }
 
   getConversation(id: string): Conversation | undefined {
@@ -83,31 +75,19 @@ export class Database {
     };
   }
 
-  listConversations(): ConversationSummary[] {
-    const rows = this.db
-      .prepare(`
-        SELECT c.id, c.agent_id, c.title, c.updated_at,
-               COUNT(m.id) as message_count
-        FROM conversations c
-        LEFT JOIN messages m ON m.conversation_id = c.id
-        GROUP BY c.id
-        ORDER BY c.updated_at DESC
-      `)
-      .all() as Array<{
-        id: string;
-        agent_id: string;
-        title: string | null;
-        updated_at: string;
-        message_count: number;
-      }>;
+  listConversations(userId: string): ConversationSummary[] {
+    const rows = this.db.prepare(`
+      SELECT c.id, c.agent_id, c.title, c.updated_at, COUNT(m.id) as message_count
+      FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
+      WHERE c.user_id = ?
+      GROUP BY c.id ORDER BY c.updated_at DESC
+    `).all(userId) as Array<{ id: string; agent_id: string; title: string | null; updated_at: string; message_count: number }>;
+    return rows.map((r) => ({ id: r.id, agentId: r.agent_id, title: r.title, updatedAt: new Date(r.updated_at), messageCount: r.message_count }));
+  }
 
-    return rows.map((r) => ({
-      id: r.id,
-      agentId: r.agent_id,
-      title: r.title,
-      updatedAt: new Date(r.updated_at),
-      messageCount: r.message_count,
-    }));
+  getConversationOwnerId(conversationId: string): string | undefined {
+    const row = this.db.prepare("SELECT user_id FROM conversations WHERE id = ?").get(conversationId) as { user_id: string } | undefined;
+    return row?.user_id;
   }
 
   addMessage(conversationId: string, role: "user" | "assistant", content: string): void {
@@ -156,6 +136,15 @@ export class Database {
       .prepare("SELECT id, email, password FROM users WHERE email = ?")
       .get(email) as { id: string; email: string; password: string } | undefined;
     return row ?? undefined;
+  }
+
+  private migrate(): void {
+    const columns = this.db.prepare("PRAGMA table_info(conversations)").all() as Array<{ name: string }>;
+    const hasUserId = columns.some((c) => c.name === "user_id");
+    if (!hasUserId) {
+      this.db.exec("ALTER TABLE conversations ADD COLUMN user_id TEXT REFERENCES users(id)");
+      console.log("[database] Migration: added user_id column to conversations");
+    }
   }
 
   close(): void {
