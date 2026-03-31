@@ -1,5 +1,6 @@
 import { Trash2 } from "lucide-react";
-import type { ConversationSummary } from "../types";
+import { AgentAvatar } from "./agent-avatar";
+import type { ConversationSummary, AgentSummary } from "../types";
 
 function relativeTime(dateStr: string): string {
   const now = Date.now();
@@ -19,6 +20,7 @@ function relativeTime(dateStr: string): string {
 interface ConversationItemProps {
   conversation: ConversationSummary;
   isActive: boolean;
+  agents: AgentSummary[];
   onClick: () => void;
   onDelete: () => void;
 }
@@ -26,9 +28,12 @@ interface ConversationItemProps {
 export function ConversationItem({
   conversation,
   isActive,
+  agents,
   onClick,
   onDelete,
 }: ConversationItemProps) {
+  const agent = agents.find((a) => a.id === conversation.agentId);
+
   return (
     <div
       onClick={onClick}
@@ -38,12 +43,19 @@ export function ConversationItem({
           : "border-border bg-assistant-bg hover:border-border hover:bg-surface"
       }`}
     >
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">
-          {conversation.title || "New conversation"}
-        </div>
-        <div className="mt-0.5 text-xs text-muted">
-          {relativeTime(conversation.updatedAt)}
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        {agent ? (
+          <AgentAvatar avatar={agent.avatar} size="sm" />
+        ) : (
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px]">?</div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">
+            {conversation.title || "New conversation"}
+          </div>
+          <div className="mt-0.5 text-xs text-muted">
+            {relativeTime(conversation.updatedAt)}
+          </div>
         </div>
       </div>
       <button
