@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@mozilla/readability": "^0.6.0",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.5",
@@ -19,6 +20,8 @@
     "express": "^4.21.0",
     "gray-matter": "^4.0.3",
     "jsonwebtoken": "^9.0.3",
+    "linkedom": "^0.18.12",
+    "playwright": "^1.59.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
