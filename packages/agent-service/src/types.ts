@@ -18,6 +18,7 @@ export interface AgentConfig {
   systemPrompt: string;
   avatar: Avatar;
   topicBoundaries?: TopicBoundaries;
+  tools?: string[];
 }
 
 export interface Message {
