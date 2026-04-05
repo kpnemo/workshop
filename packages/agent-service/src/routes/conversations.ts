@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Database } from "../services/database.js";
 import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
+import type { ToolService } from "../services/tool-service.js";
 
 let anthropic: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -16,7 +17,8 @@ function getClient(): Anthropic {
 
 export function createConversationRouter(
   agents: Map<string, AgentConfig>,
-  db: Database
+  db: Database,
+  toolService?: ToolService
 ): Router {
   const router = Router();
 
@@ -140,43 +142,114 @@ export function createConversationRouter(
       content: m.content,
     }));
 
-    let stream;
-    const streamStart = Date.now();
-    try {
-      console.log(`[stream] Starting Claude stream (model: ${agent.model}, messages: ${claudeMessages.length})`);
-      stream = getClient().messages.stream({
-        model: agent.model,
-        max_tokens: agent.maxTokens,
-        temperature: agent.temperature,
-        system: agent.systemPrompt,
-        messages: claudeMessages,
-      });
-    } catch (err) {
-      console.error("[stream] Failed to create stream:", err);
-      res.status(502).json({ error: "LLM service error" });
-      return;
-    }
+    const MAX_TOOL_ITERATIONS = 5;
+    const tools = toolService ? toolService.getToolsForAgent(agent) : [];
+
+    // Messages array for the agentic loop — starts with conversation history
+    // and grows with tool_use/tool_result pairs during tool execution
+    const loopMessages: Array<{ role: string; content: any }> = claudeMessages;
 
     startSSE(res);
 
     try {
       let fullResponse = "";
+      let iterations = 0;
 
-      for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          fullResponse += event.delta.text;
-          writeSSE(res, "delta", { text: event.delta.text });
+      while (iterations < MAX_TOOL_ITERATIONS) {
+        iterations++;
+
+        const streamParams: Record<string, any> = {
+          model: agent.model,
+          max_tokens: agent.maxTokens,
+          temperature: agent.temperature,
+          system: agent.systemPrompt,
+          messages: loopMessages,
+        };
+        if (tools.length > 0) {
+          streamParams.tools = tools;
         }
+
+        const streamStart = Date.now();
+        let stream;
+        try {
+          console.log(`[stream] Starting Claude stream (model: ${agent.model}, iteration: ${iterations}, messages: ${loopMessages.length})`);
+          stream = getClient().messages.stream(streamParams as any);
+        } catch (err) {
+          console.error("[stream] Failed to create stream:", err);
+          writeSSE(res, "error", { message: "LLM service error" });
+          break;
+        }
+
+        // Collect the full response message
+        const finalMessage = await stream.finalMessage();
+        const streamMs = Date.now() - streamStart;
+
+        // Stream text deltas to frontend
+        const textBlocks = finalMessage.content.filter(
+          (block: any) => block.type === "text"
+        );
+        for (const block of textBlocks as any[]) {
+          fullResponse += block.text;
+          writeSSE(res, "delta", { text: block.text });
+        }
+
+        console.log(`[stream] Response complete (${fullResponse.length} chars, ${streamMs}ms, stop: ${finalMessage.stop_reason})`);
+
+        // Check if Claude wants to use tools
+        if (finalMessage.stop_reason !== "tool_use") {
+          break; // No tool calls — we're done
+        }
+
+        // Extract tool_use blocks
+        const toolUseBlocks = finalMessage.content.filter(
+          (block: any) => block.type === "tool_use"
+        );
+
+        if (toolUseBlocks.length === 0 || !toolService) {
+          break;
+        }
+
+        // Push assistant message with all content blocks (text + tool_use)
+        loopMessages.push({
+          role: "assistant",
+          content: finalMessage.content,
+        });
+
+        // Execute each tool and build tool_result blocks
+        const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
+
+        for (const toolUse of toolUseBlocks as any[]) {
+          console.log(`[tool] Executing ${toolUse.name} with input: ${JSON.stringify(toolUse.input).slice(0, 200)}`);
+          writeSSE(res, "tool_start", { tool: toolUse.name, input: toolUse.input });
+
+          const toolStart = Date.now();
+          const result = await toolService.execute(toolUse.name, toolUse.input);
+          const toolMs = Date.now() - toolStart;
+
+          console.log(`[tool] ${toolUse.name} completed (${toolMs}ms, ${result.length} chars)`);
+          writeSSE(res, "tool_done", { tool: toolUse.name, duration_ms: toolMs });
+
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolUse.id,
+            content: result,
+          });
+        }
+
+        // Push tool results as a user message
+        loopMessages.push({
+          role: "user",
+          content: toolResults,
+        });
+
+        // Reset fullResponse for the next iteration — we only save the final text
+        fullResponse = "";
       }
 
-      const streamMs = Date.now() - streamStart;
-      console.log(`[stream] Response complete (${fullResponse.length} chars, ${streamMs}ms)`);
-
-      // Save assistant response
-      db.addMessage(conversation.id, "assistant", fullResponse);
+      // Save final assistant response
+      if (fullResponse) {
+        db.addMessage(conversation.id, "assistant", fullResponse);
+      }
 
       // Generate title if this is the first exchange (no title yet)
       if (!conversation.title) {

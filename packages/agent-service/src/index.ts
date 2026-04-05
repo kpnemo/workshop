@@ -13,6 +13,7 @@ import { createConversationRouter } from "./routes/conversations.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createAgentsRouter } from "./routes/agents.js";
 import { authMiddleware } from "./middleware/auth.js";
+import { ToolService } from "./services/tool-service.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const AGENTS_DIR =
@@ -50,12 +51,29 @@ console.log(`[startup] Loaded ${agents.size} agent(s): ${[...agents.keys()].join
 const db = new Database(DB_PATH);
 console.log(`[startup] Database opened at ${DB_PATH}`);
 
+// Tool service
+const toolService = new ToolService();
+toolService.registerDefaults();
+console.log(`[startup] Tool service initialized`);
+
 // Routes
 app.use("/auth", createAuthRouter(db, JWT_SECRET));
 app.use("/agents", createAgentsRouter(agents, AGENTS_DIR));
-app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db));
+app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService));
 
 // Start server
 app.listen(PORT, () => {
   console.log(`[startup] Agent service listening on http://localhost:${PORT}`);
+});
+
+process.on("SIGTERM", async () => {
+  console.log("[shutdown] Shutting down tool service...");
+  await toolService.shutdown();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  console.log("[shutdown] Shutting down tool service...");
+  await toolService.shutdown();
+  process.exit(0);
 });

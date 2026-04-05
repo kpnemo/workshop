@@ -17,10 +17,12 @@ vi.mock("../services/guardrails.js", () => ({
 
 const mockStream = {
   async *[Symbol.asyncIterator]() {
-    yield { type: "content_block_delta", delta: { type: "text_delta", text: "Hello" } };
-    yield { type: "content_block_delta", delta: { type: "text_delta", text: " there" } };
     yield { type: "message_stop" };
   },
+  finalMessage: vi.fn().mockResolvedValue({
+    content: [{ type: "text", text: "Hello there" }],
+    stop_reason: "end_turn",
+  }),
 };
 
 vi.mock("@anthropic-ai/sdk", () => ({
