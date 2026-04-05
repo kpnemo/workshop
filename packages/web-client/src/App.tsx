@@ -17,7 +17,7 @@ function AuthenticatedApp() {
     selectConversation,
     deleteConversation,
     switchAgent,
-  } = useChat(agents[0]?.id ?? null);
+  } = useChat(agents[0]?.id ?? null, agents.map((a) => a.id));
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (

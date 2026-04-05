@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
   listConversations,
@@ -19,7 +19,7 @@ function setLastAgentId(id: string): void {
   localStorage.setItem(LAST_AGENT_KEY, id);
 }
 
-export function useChat(defaultAgentId: string | null) {
+export function useChat(defaultAgentId: string | null, agentIds: string[] = []) {
   const [state, setState] = useState<ChatState>({
     conversationId: null,
     messages: [],
@@ -29,9 +29,18 @@ export function useChat(defaultAgentId: string | null) {
     error: null,
   });
 
+  const stableAgentIds = useMemo(() => agentIds, [agentIds.join(",")]);
+
   const resolveAgentId = useCallback((): string | null => {
-    return getLastAgentId() || defaultAgentId;
-  }, [defaultAgentId]);
+    const lastId = getLastAgentId();
+    if (lastId && stableAgentIds.length > 0 && stableAgentIds.includes(lastId)) {
+      return lastId;
+    }
+    if (lastId && stableAgentIds.length === 0) {
+      return lastId;
+    }
+    return defaultAgentId;
+  }, [defaultAgentId, stableAgentIds]);
 
   const loadConversations = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
