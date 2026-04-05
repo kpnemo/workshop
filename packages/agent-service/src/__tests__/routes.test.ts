@@ -10,9 +10,24 @@ import { authMiddleware } from "../middleware/auth.js";
 import { Database } from "../services/database.js";
 import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
+import { ToolService } from "../services/tool-service.js";
+import type { Tool } from "../services/tools/types.js";
 
 vi.mock("../services/guardrails.js", () => ({
   checkTopicBoundary: vi.fn().mockResolvedValue({ allowed: true }),
+}));
+
+vi.mock("playwright", () => ({
+  chromium: {
+    launch: vi.fn().mockResolvedValue({
+      newContext: vi.fn().mockResolvedValue({
+        newPage: vi.fn().mockResolvedValue({}),
+        close: vi.fn(),
+      }),
+      close: vi.fn(),
+      isConnected: vi.fn().mockReturnValue(true),
+    }),
+  },
 }));
 
 const mockStream = {
@@ -25,13 +40,16 @@ const mockStream = {
   }),
 };
 
+let mockMessagesStream = vi.fn().mockReturnValue(mockStream);
+let mockMessagesCreate = vi.fn().mockResolvedValue({
+  content: [{ type: "text", text: "Greeting Conversation" }],
+});
+
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
     messages = {
-      stream: vi.fn().mockReturnValue(mockStream),
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: "text", text: "Greeting Conversation" }],
-      }),
+      get stream() { return mockMessagesStream; },
+      get create() { return mockMessagesCreate; },
     };
   },
 }));
@@ -49,6 +67,48 @@ function buildApp(agents: Map<string, AgentConfig>) {
   const app = express();
   app.use(express.json());
   app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db));
+  return app;
+}
+
+function createToolUseStream() {
+  let callCount = 0;
+  return {
+    stream: vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          async *[Symbol.asyncIterator]() {
+            yield { type: "message_stop" };
+          },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [
+              { type: "text", text: "Let me look that up. " },
+              { type: "tool_use", id: "tool_1", name: "fake_tool", input: { query: "test" } },
+            ],
+            stop_reason: "tool_use",
+          }),
+        };
+      }
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield { type: "message_stop" };
+        },
+        finalMessage: vi.fn().mockResolvedValue({
+          content: [{ type: "text", text: "Here is the answer." }],
+          stop_reason: "end_turn",
+        }),
+      };
+    }),
+    create: vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "Tool Conversation Title" }],
+    }),
+  };
+}
+
+function buildAppWithTools(agents: Map<string, AgentConfig>, toolService: ToolService) {
+  const app = express();
+  app.use(express.json());
+  app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService));
   return app;
 }
 
@@ -238,5 +298,50 @@ describe("GET /conversations/:id", () => {
     db.createConversation("conv-1", "test-bot", "user-a");
     const res = await makeRequest(app, "GET", "/conversations/conv-1", undefined, userBToken);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("Tool execution loop", () => {
+  it("executes tool and returns final response", async () => {
+    const toolService = new ToolService();
+    const fakeTool: Tool = {
+      name: "fake_tool",
+      definition: {
+        name: "fake_tool",
+        description: "A fake tool",
+        input_schema: { type: "object" as const, properties: {} },
+      },
+      execute: vi.fn().mockResolvedValue("tool execution result"),
+    };
+    toolService.register(fakeTool);
+
+    const agentWithTools: AgentConfig = {
+      ...testAgent,
+      id: "tool-bot",
+      tools: ["fake_tool"],
+    };
+
+    // Override the Anthropic mock for this test
+    const toolMock = createToolUseStream();
+    mockMessagesStream = toolMock.stream;
+    mockMessagesCreate = toolMock.create;
+
+    const app = buildAppWithTools(
+      new Map([["tool-bot", agentWithTools]]),
+      toolService
+    );
+    db.createConversation("conv-tool", "tool-bot", "user-a");
+
+    const res = await makeRequest(
+      app, "POST", "/conversations/conv-tool/messages",
+      { message: "Use the tool" }, userAToken
+    );
+
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+    expect(res.body).toContain("event: tool_start");
+    expect(res.body).toContain("event: tool_done");
+    expect(res.body).toContain("Here is the answer");
+    expect(res.body).toContain("event: done");
+    expect(fakeTool.execute).toHaveBeenCalledWith({ query: "test" });
   });
 });
