@@ -1,70 +1,76 @@
-# New Workshop — Agent Service
+# AI Agent Workshop
 
-A conversational agent service with REST API + SSE streaming, powered by Anthropic Claude.
+Build conversational AI agents with tools, guardrails, and personas. Powered by Claude.
 
-## Quick Start
+## Getting Started
 
-If you have [Claude Code](https://claude.com/claude-code) installed, just type:
+### Prerequisites
 
-```
+- [Node.js](https://nodejs.org/) v18+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
+- [Anthropic API key](https://console.anthropic.com/settings/keys)
+
+### Setup (3 steps)
+
+```bash
+# 1. Clone and open the project
+git clone <repo-url> && cd new-workshop
+
+# 2. Start Claude Code
+claude
+
+# 3. Run the onboarding
 /workshop-onboarding
 ```
 
-This will install dependencies, configure your `.env` with your API key, start both services, and give you the URLs.
+That's it. The onboarding skill installs dependencies, configures your environment, starts the services, and opens the app in your browser.
 
-### Manual setup
+## What You'll Build
 
-```bash
-pnpm install
-cp .env.example .env
-# Edit .env and add your Anthropic API key
+Agents are markdown files with a persona, model settings, and optional tools:
+
+```yaml
+---
+name: Weather Agent
+model: claude-sonnet-4-20250514
+tools:
+  - browse_url
+---
+You are a weather agent. Browse the web to find current weather for any location.
 ```
 
-Start both backend and frontend with a single command:
+### Available Tools
 
-```bash
-pnpm start
-```
+| Tool | Description |
+|------|-------------|
+| `browse_url` | Fetch and extract text content from web pages |
 
-- Backend (API): http://localhost:3000
-- Frontend (UI): http://localhost:5173
+### Features
 
-## API
+- Chat with AI agents via a web UI
+- Real-time streaming responses (SSE)
+- Per-agent tools (web browsing, more coming)
+- Topic guardrails (allow/block specific topics)
+- Agent management (create, edit, delete via UI)
 
-### Create conversation
+## Useful Commands
 
-```bash
-curl -X POST http://localhost:3000/conversations \
-  -H "Content-Type: application/json" \
-  -d '{"agentId": "support-bot"}'
-```
-
-### Send message (SSE streaming)
-
-```bash
-curl -N -X POST http://localhost:3000/conversations/{id}/messages \
-  -H "Content-Type: application/json" \
-  -d '{"message": "What products do you offer?"}'
-```
-
-### Get conversation history
-
-```bash
-curl http://localhost:3000/conversations/{id}
-```
-
-## Agent Configuration
-
-Agents are defined as markdown files in the `agents/` directory. Each file describes the agent's persona, instructions, and behavior.
-
-See `agents/support-bot.md` for an example.
+| Command | What it does |
+|---------|-------------|
+| `pnpm start` | Start services + show live logs |
+| `pnpm stop` | Stop all services |
+| `pnpm restart` | Restart all services |
+| `pnpm logs` | View live logs (Ctrl+C to exit, services keep running) |
+| `pnpm status` | Show service status table |
 
 ## Project Structure
 
 ```
 new-workshop/
-├── agents/                   # Agent definition files (markdown)
-│   └── support-bot.md
-└── packages/
-    └── agent-service/        # REST API + SSE streaming service
+├── agents/                          # Agent personas (markdown files)
+├── packages/
+│   ├── agent-service/               # Express backend (port 3000)
+│   │   └── src/services/tools/      # Tool implementations
+│   └── web-client/                  # React + Vite frontend (port 5173)
+└── .env                             # API keys (created during onboarding)
 ```
