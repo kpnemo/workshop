@@ -6,6 +6,8 @@ temperature: 0.7
 avatar:
   emoji: "🤖"
   color: "#6c5ce7"
+tools:
+  - browse_url
 topicBoundaries:
   allowed:
     - "product questions"
