@@ -22,6 +22,7 @@ Run these checks in parallel:
 - Was `pnpm` used, or did the user use `npm`? (check for `node_modules/.pnpm` — if it's missing but `node_modules` exists, the user likely used npm)
 - What Node.js version is installed? (`node --version`) — if below v18, warn early
 - Are pm2 processes already running? (`pnpm pm2 list 2>/dev/null`) — if so, stop them first with `pnpm stop` before restarting to avoid port conflicts
+- Is Playwright Chromium installed? (`cd packages/agent-service && pnpm exec playwright --version 2>/dev/null`) — if not, the `browse_url` agent tool won't work
 
 Based on what you find, skip steps that are already complete and tell the user what you're skipping and why.
 
@@ -42,7 +43,15 @@ npm install -g pnpm
 
 Verify the install succeeded (exit code 0, no unresolved peer dependency errors). This also installs pm2, which is used to manage the services.
 
-Skip this step if Step 0 confirmed dependencies are already correctly installed via pnpm.
+Then install Playwright's Chromium browser (needed for the `browse_url` agent tool):
+
+```bash
+cd packages/agent-service && pnpm exec playwright install chromium
+```
+
+This downloads the headless Chromium binary. It's a ~150MB download and only needs to happen once. If it fails, check that the user has write access to the Playwright cache directory.
+
+Skip the `pnpm install` part of this step if Step 0 confirmed dependencies are already correctly installed via pnpm. Still check if Playwright browsers are installed — run `cd packages/agent-service && pnpm exec playwright --version` to verify. If it errors, run the install command above.
 
 ## Step 2: Configure environment
 
@@ -121,7 +130,7 @@ Do a final health check before opening — curl the frontend one more time. If i
 
 ## Step 5: Orient the user
 
-After setup succeeds, present the user with everything they need to know. Check if the `agents/` directory has any markdown files and count them.
+After setup succeeds, present the user with everything they need to know. Check if the `agents/` directory has any markdown files, count them, and check which ones have a `tools:` field in their frontmatter.
 
 Tell the user:
 
@@ -131,6 +140,8 @@ Tell the user:
 > - Frontend (UI): http://localhost:5173
 >
 > You have X agent persona(s) defined in `agents/`. Try chatting with one in the UI!
+>
+> Some agents have **tools** enabled (like `browse_url` for web browsing). You can give an agent tools by adding a `tools:` field to its markdown frontmatter. See the agent edit form in the UI for available tools and examples.
 >
 > **Useful commands:**
 >
