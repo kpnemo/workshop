@@ -140,6 +140,24 @@ export function AgentForm({ agent, onSave, onBack }: AgentFormProps) {
               className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none" />
           </div>
 
+          {/* Tools Info */}
+          <div className="rounded-md border border-border bg-surface/50 px-3 py-2.5">
+            <p className="text-xs text-muted">
+              Tools are configured in the agent's markdown file. Add a <code className="rounded bg-background px-1 py-0.5 text-[11px] text-foreground">tools:</code> field to the frontmatter:
+            </p>
+            <pre className="mt-2 rounded bg-background px-2.5 py-2 text-[11px] leading-relaxed text-foreground">
+{`tools:
+  - browse_url`}
+            </pre>
+            <div className="mt-2.5">
+              <span className="text-[11px] text-muted">Available tools:</span>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[11px] text-primary">browse_url</span>
+                <span className="text-[11px] text-muted">Fetch and extract text content from web pages</span>
+              </div>
+            </div>
+          </div>
+
           {/* Model / Temperature / MaxTokens */}
           <div className="flex gap-3">
             <div className="flex-1">
@@ -195,26 +213,6 @@ export function AgentForm({ agent, onSave, onBack }: AgentFormProps) {
             )}
           </div>
 
-          {/* Tools Info */}
-          <div className="border-t border-border pt-4">
-            <div className="mb-2 text-xs text-muted">Tools</div>
-            <div className="rounded-md border border-border bg-surface/50 px-3 py-2.5">
-              <p className="text-xs text-muted">
-                Tools are configured in the agent's markdown file. Add a <code className="rounded bg-background px-1 py-0.5 text-[11px] text-foreground">tools:</code> field to the frontmatter:
-              </p>
-              <pre className="mt-2 rounded bg-background px-2.5 py-2 text-[11px] leading-relaxed text-foreground">
-{`tools:
-  - browse_url`}
-              </pre>
-              <div className="mt-2.5">
-                <span className="text-[11px] text-muted">Available tools:</span>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[11px] text-primary">browse_url</span>
-                  <span className="text-[11px] text-muted">Fetch and extract text content from web pages</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

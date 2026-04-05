@@ -66,7 +66,7 @@ export function AgentDrawer({ agents, onClose, onCreate, onUpdate, onDelete, onA
       <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 z-50 flex h-full w-[380px] flex-col border-l border-border bg-background shadow-xl">
+      <div className="fixed right-0 top-0 z-50 flex h-full w-[520px] flex-col border-l border-border bg-background shadow-xl">
         {view.type === "form" ? (
           <AgentForm agent={view.agent} onSave={handleSave} onBack={() => setView({ type: "list" })} />
         ) : (
