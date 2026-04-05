@@ -32,6 +32,8 @@ vi.mock("playwright", () => ({
 
 const mockStream = {
   async *[Symbol.asyncIterator]() {
+    yield { type: "content_block_delta", delta: { type: "text_delta", text: "Hello" } };
+    yield { type: "content_block_delta", delta: { type: "text_delta", text: " there" } };
     yield { type: "message_stop" };
   },
   finalMessage: vi.fn().mockResolvedValue({
@@ -78,6 +80,7 @@ function createToolUseStream() {
       if (callCount === 1) {
         return {
           async *[Symbol.asyncIterator]() {
+            yield { type: "content_block_delta", delta: { type: "text_delta", text: "Let me look that up. " } };
             yield { type: "message_stop" };
           },
           finalMessage: vi.fn().mockResolvedValue({
@@ -91,6 +94,7 @@ function createToolUseStream() {
       }
       return {
         async *[Symbol.asyncIterator]() {
+          yield { type: "content_block_delta", delta: { type: "text_delta", text: "Here is the answer." } };
           yield { type: "message_stop" };
         },
         finalMessage: vi.fn().mockResolvedValue({

@@ -180,18 +180,20 @@ export function createConversationRouter(
           break;
         }
 
-        // Collect the full response message
+        // Stream text deltas to frontend in real-time
+        for await (const event of stream) {
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            fullResponse += event.delta.text;
+            writeSSE(res, "delta", { text: event.delta.text });
+          }
+        }
+
+        // Get the final message for stop_reason and tool_use blocks
         const finalMessage = await stream.finalMessage();
         const streamMs = Date.now() - streamStart;
-
-        // Stream text deltas to frontend
-        const textBlocks = finalMessage.content.filter(
-          (block: any) => block.type === "text"
-        );
-        for (const block of textBlocks as any[]) {
-          fullResponse += block.text;
-          writeSSE(res, "delta", { text: block.text });
-        }
 
         console.log(`[stream] Response complete (${fullResponse.length} chars, ${streamMs}ms, stop: ${finalMessage.stop_reason})`);
 
