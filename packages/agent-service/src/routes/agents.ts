@@ -32,7 +32,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
   });
 
   router.post("/", (req: Request, res: Response) => {
-    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries } = req.body;
+    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries, delegates } = req.body;
     if (!name || typeof name !== "string" || name.trim() === "") { res.status(400).json({ error: "name is required" }); return; }
     if (!systemPrompt || typeof systemPrompt !== "string" || systemPrompt.trim() === "") { res.status(400).json({ error: "systemPrompt is required" }); return; }
     const temp = temperature ?? 0.7;
@@ -46,6 +46,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
       maxTokens: tokens, temperature: temp, systemPrompt: systemPrompt.trim(),
       avatar: { emoji: avatar?.emoji || "🤖", color: avatar?.color || "#6c5ce7" },
       topicBoundaries: topicBoundaries || undefined,
+      delegates: delegates || undefined,
     };
     saveAgent(agentsDir, id, config);
     refreshAgents();
@@ -55,7 +56,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
   router.put("/:id", (req: Request, res: Response) => {
     const { id } = req.params;
     if (!agents.has(id)) { res.status(404).json({ error: "Agent not found" }); return; }
-    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries } = req.body;
+    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries, delegates } = req.body;
     if (!name || typeof name !== "string" || name.trim() === "") { res.status(400).json({ error: "name is required" }); return; }
     if (!systemPrompt || typeof systemPrompt !== "string" || systemPrompt.trim() === "") { res.status(400).json({ error: "systemPrompt is required" }); return; }
     const existing = agents.get(id)!;
@@ -65,6 +66,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
       systemPrompt: systemPrompt.trim(),
       avatar: { emoji: avatar?.emoji || existing.avatar.emoji, color: avatar?.color || existing.avatar.color },
       topicBoundaries: topicBoundaries || undefined,
+      delegates: delegates || undefined,
     };
     saveAgent(agentsDir, id, config);
     refreshAgents();
