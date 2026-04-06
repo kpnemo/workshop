@@ -12,6 +12,7 @@ import { Database } from "./services/database.js";
 import { createConversationRouter } from "./routes/conversations.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createAgentsRouter } from "./routes/agents.js";
+import { createCopilotRouter } from "./routes/copilot.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { ToolService } from "./services/tool-service.js";
 
@@ -60,6 +61,7 @@ console.log(`[startup] Tool service initialized`);
 app.use("/auth", createAuthRouter(db, JWT_SECRET));
 app.use("/agents", createAgentsRouter(agents, AGENTS_DIR, toolService));
 app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService));
+app.use("/copilot", authMiddleware(JWT_SECRET), createCopilotRouter(agents, AGENTS_DIR, toolService.getAvailableTools()));
 
 // Start server
 app.listen(PORT, () => {
