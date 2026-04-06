@@ -19,17 +19,29 @@ export interface AgentConfig {
   avatar: Avatar;
   topicBoundaries?: TopicBoundaries;
   tools?: string[];
+  delegates?: string[];
+}
+
+export interface DelegationMeta {
+  type: "delegation_start" | "delegation_end";
+  from: string;
+  to: string;
+  context?: string;
+  summary?: string;
 }
 
 export interface Message {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  agentId?: string | null;
+  delegationMeta?: DelegationMeta | null;
 }
 
 export interface Conversation {
   id: string;
   agentId: string;
+  activeAgent: string | null;
   title: string | null;
   messages: Message[];
   createdAt: Date;

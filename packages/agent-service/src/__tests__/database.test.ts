@@ -160,4 +160,51 @@ describe("Database", () => {
       expect(db.getConversationOwnerId("nonexistent")).toBeUndefined();
     });
   });
+
+  describe("Delegation support", () => {
+    it("stores and retrieves active_agent on conversation", () => {
+      db.createUser("user-1", "d1@example.com", "pw");
+      db.createConversation("conv-d1", "main-agent", "user-1");
+      db.setActiveAgent("conv-d1", "specialist-agent");
+      const conv = db.getConversation("conv-d1")!;
+      expect(conv.activeAgent).toBe("specialist-agent");
+    });
+
+    it("defaults active_agent to null", () => {
+      db.createUser("user-1", "d2@example.com", "pw");
+      db.createConversation("conv-d2", "main-agent", "user-1");
+      const conv = db.getConversation("conv-d2")!;
+      expect(conv.activeAgent).toBeNull();
+    });
+
+    it("clears active_agent", () => {
+      db.createUser("user-1", "d3@example.com", "pw");
+      db.createConversation("conv-d3", "main-agent", "user-1");
+      db.setActiveAgent("conv-d3", "specialist-agent");
+      db.setActiveAgent("conv-d3", null);
+      const conv = db.getConversation("conv-d3")!;
+      expect(conv.activeAgent).toBeNull();
+    });
+
+    it("stores agent_id on messages", () => {
+      db.createUser("user-1", "d4@example.com", "pw");
+      db.createConversation("conv-d4", "main-agent", "user-1");
+      db.addMessage("conv-d4", "assistant", "Hello", "main-agent");
+      db.addMessage("conv-d4", "user", "Hi");
+      const conv = db.getConversation("conv-d4")!;
+      expect(conv.messages[0].agentId).toBe("main-agent");
+      expect(conv.messages[1].agentId).toBeNull();
+    });
+
+    it("stores delegation_meta on messages", () => {
+      db.createUser("user-1", "d5@example.com", "pw");
+      db.createConversation("conv-d5", "main-agent", "user-1");
+      const meta = { type: "delegation_start", from: "main-agent", to: "schedule-agent", context: "schedule a meeting" };
+      db.addDelegationMessage("conv-d5", meta);
+      const conv = db.getConversation("conv-d5")!;
+      const delegationMsg = conv.messages.find(m => m.delegationMeta);
+      expect(delegationMsg).toBeDefined();
+      expect(delegationMsg!.delegationMeta).toEqual(meta);
+    });
+  });
 });

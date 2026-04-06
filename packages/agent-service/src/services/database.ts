@@ -47,28 +47,31 @@ export class Database {
     this.db
       .prepare("INSERT INTO conversations (id, agent_id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, ?)")
       .run(id, agentId, userId, now, now);
-    return { id, agentId, title: null, messages: [], createdAt: new Date(now), updatedAt: new Date(now) };
+    return { id, agentId, activeAgent: null, title: null, messages: [], createdAt: new Date(now), updatedAt: new Date(now) };
   }
 
   getConversation(id: string): Conversation | undefined {
     const row = this.db
-      .prepare("SELECT id, agent_id, title, created_at, updated_at FROM conversations WHERE id = ?")
-      .get(id) as { id: string; agent_id: string; title: string | null; created_at: string; updated_at: string } | undefined;
+      .prepare("SELECT id, agent_id, active_agent, title, created_at, updated_at FROM conversations WHERE id = ?")
+      .get(id) as { id: string; agent_id: string; active_agent: string | null; title: string | null; created_at: string; updated_at: string } | undefined;
 
     if (!row) return undefined;
 
     const messages = this.db
-      .prepare("SELECT role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY id ASC")
-      .all(id) as Array<{ role: string; content: string; created_at: string }>;
+      .prepare("SELECT role, content, created_at, agent_id, delegation_meta FROM messages WHERE conversation_id = ? ORDER BY id ASC")
+      .all(id) as Array<{ role: string; content: string; created_at: string; agent_id: string | null; delegation_meta: string | null }>;
 
     return {
       id: row.id,
       agentId: row.agent_id,
+      activeAgent: row.active_agent ?? null,
       title: row.title,
       messages: messages.map((m) => ({
-        role: m.role as "user" | "assistant",
+        role: m.role as "user" | "assistant" | "system",
         content: m.content,
         timestamp: new Date(m.created_at),
+        agentId: m.agent_id ?? null,
+        delegationMeta: m.delegation_meta ? JSON.parse(m.delegation_meta) : null,
       })),
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
@@ -90,7 +93,7 @@ export class Database {
     return row?.user_id;
   }
 
-  addMessage(conversationId: string, role: "user" | "assistant", content: string): void {
+  addMessage(conversationId: string, role: "user" | "assistant", content: string, agentId?: string): void {
     const conv = this.db
       .prepare("SELECT id FROM conversations WHERE id = ?")
       .get(conversationId);
@@ -101,12 +104,22 @@ export class Database {
 
     const now = new Date().toISOString();
     this.db
-      .prepare("INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)")
-      .run(conversationId, role, content, now);
+      .prepare("INSERT INTO messages (conversation_id, role, content, created_at, agent_id) VALUES (?, ?, ?, ?, ?)")
+      .run(conversationId, role, content, now, agentId ?? null);
 
     this.db
       .prepare("UPDATE conversations SET updated_at = ? WHERE id = ?")
       .run(now, conversationId);
+  }
+
+  addDelegationMessage(conversationId: string, meta: { type: string; from: string; to: string; context?: string; summary?: string }): void {
+    const now = new Date().toISOString();
+    this.db.prepare("INSERT INTO messages (conversation_id, role, content, created_at, delegation_meta) VALUES (?, ?, ?, ?, ?)").run(conversationId, "system", "", now, JSON.stringify(meta));
+    this.db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(now, conversationId);
+  }
+
+  setActiveAgent(conversationId: string, agentId: string | null): void {
+    this.db.prepare("UPDATE conversations SET active_agent = ? WHERE id = ?").run(agentId, conversationId);
   }
 
   deleteConversation(id: string): boolean {
@@ -144,6 +157,22 @@ export class Database {
     if (!hasUserId) {
       this.db.exec("ALTER TABLE conversations ADD COLUMN user_id TEXT REFERENCES users(id)");
       console.log("[database] Migration: added user_id column to conversations");
+    }
+
+    const convColumns = this.db.prepare("PRAGMA table_info(conversations)").all() as Array<{ name: string }>;
+    if (!convColumns.some((c) => c.name === "active_agent")) {
+      this.db.exec("ALTER TABLE conversations ADD COLUMN active_agent TEXT");
+      console.log("[database] Migration: added active_agent column to conversations");
+    }
+
+    const msgColumns = this.db.prepare("PRAGMA table_info(messages)").all() as Array<{ name: string }>;
+    if (!msgColumns.some((c) => c.name === "agent_id")) {
+      this.db.exec("ALTER TABLE messages ADD COLUMN agent_id TEXT");
+      console.log("[database] Migration: added agent_id column to messages");
+    }
+    if (!msgColumns.some((c) => c.name === "delegation_meta")) {
+      this.db.exec("ALTER TABLE messages ADD COLUMN delegation_meta TEXT");
+      console.log("[database] Migration: added delegation_meta column to messages");
     }
   }
 
