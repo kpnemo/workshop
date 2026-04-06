@@ -239,6 +239,7 @@ export function createConversationRouter(
         fullResponse = "";
         let iterations = 0;
         let delegateToOccurred = false;
+        let handBackOccurred = false;
 
         while (iterations < MAX_TOOL_ITERATIONS) {
           iterations++;
@@ -334,6 +335,7 @@ export function createConversationRouter(
           const hasDelegation = toolResults.some((r) => r.content.startsWith("[DELEGATION]"));
           if (hasDelegation) {
             delegateToOccurred = toolUseBlocks.some((t: any) => t.name === "delegate_to");
+            handBackOccurred = toolUseBlocks.some((t: any) => t.name === "hand_back");
             break;
           }
 
@@ -351,7 +353,11 @@ export function createConversationRouter(
           console.log(`[delegation] delegate_to occurred — continuing with specialist agent`);
           continueWithDelegation = true;
         }
-        // hand_back or normal end — outer loop exits
+        // If hand_back occurred, continue the outer loop so the main agent can produce a summary
+        if (handBackOccurred) {
+          console.log(`[delegation] hand_back occurred — continuing with main agent for summary`);
+          continueWithDelegation = true;
+        }
       }
 
       // Generate title if this is the first exchange (no title yet)
