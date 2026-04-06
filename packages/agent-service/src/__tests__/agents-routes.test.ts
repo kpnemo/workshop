@@ -88,6 +88,7 @@ describe("GET /agents", () => {
       model: "claude-sonnet-4-20250514",
       avatar: { emoji: "🤖", color: "#6c5ce7" },
       hasGuardrails: false,
+      delegates: [],
     });
   });
 });

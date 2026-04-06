@@ -20,7 +20,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
 
   router.get("/", (_req: Request, res: Response) => {
     const list = [...agents.values()].map((a) => ({
-      id: a.id, name: a.name, model: a.model, avatar: a.avatar, hasGuardrails: !!a.topicBoundaries,
+      id: a.id, name: a.name, model: a.model, avatar: a.avatar, hasGuardrails: !!a.topicBoundaries, delegates: a.delegates ?? [],
     }));
     res.json(list);
   });
