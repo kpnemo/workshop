@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { Tool } from "./tools/types.js";
+import type { Tool, ToolContext } from "./tools/types.js";
 import type { AgentConfig } from "../types.js";
 import { BrowserManager } from "./tools/browser-manager.js";
 import { createBrowseUrlTool } from "./tools/browse-url.js";
@@ -31,12 +31,12 @@ export class ToolService {
       .map((tool) => tool.definition);
   }
 
-  async execute(toolName: string, input: unknown): Promise<string> {
+  async execute(toolName: string, input: unknown, context?: ToolContext): Promise<string> {
     const tool = this.tools.get(toolName);
     if (!tool) {
       return `Error: Tool "${toolName}" is not registered.`;
     }
-    return tool.execute(input);
+    return tool.execute(input, context);
   }
 
   async shutdown(): Promise<void> {

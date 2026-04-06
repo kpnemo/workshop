@@ -95,7 +95,7 @@ describe("ToolService", () => {
 
     const result = await service.execute("my_tool", { key: "value" });
 
-    expect(tool.execute).toHaveBeenCalledWith({ key: "value" });
+    expect(tool.execute).toHaveBeenCalledWith({ key: "value" }, undefined);
     expect(result).toBe("my_tool result");
   });
 
@@ -104,5 +104,20 @@ describe("ToolService", () => {
 
     expect(result).toContain("Error");
     expect(result).toContain("nonexistent");
+  });
+
+  it("passes context to tool execute when provided", async () => {
+    const tool = makeFakeTool("ctx_tool");
+    service.register(tool);
+
+    const context = {
+      conversationId: "conv-1",
+      res: {} as any,
+      db: {} as any,
+      agents: new Map(),
+    };
+
+    await service.execute("ctx_tool", { key: "value" }, context);
+    expect(tool.execute).toHaveBeenCalledWith({ key: "value" }, context);
   });
 });

@@ -346,6 +346,6 @@ describe("Tool execution loop", () => {
     expect(res.body).toContain("event: tool_done");
     expect(res.body).toContain("Here is the answer");
     expect(res.body).toContain("event: done");
-    expect(fakeTool.execute).toHaveBeenCalledWith({ query: "test" });
+    expect(fakeTool.execute).toHaveBeenCalledWith({ query: "test" }, undefined);
   });
 });
