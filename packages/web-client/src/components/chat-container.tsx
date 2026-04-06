@@ -61,7 +61,7 @@ export function ChatContainer({
       </div>
 
       {/* Messages */}
-      <MessageList messages={messages} isStreaming={isStreaming} />
+      <MessageList messages={messages} isStreaming={isStreaming} agents={agents} />
 
       {/* Error banner */}
       {error && conversationId && (

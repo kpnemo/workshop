@@ -1,17 +1,18 @@
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import type { AgentConfig, CreateAgentInput } from "../types";
+import { ArrowLeft, X } from "lucide-react";
+import type { AgentConfig, AgentSummary, CreateAgentInput } from "../types";
 
 const AVATAR_COLORS = ["#6c5ce7", "#00b894", "#fd79a8", "#fdcb6e", "#74b9ff"];
 const DEFAULT_EMOJIS = ["🤖", "📝", "💻", "🎯", "🧠", "🔧", "🎨", "🛡️"];
 
 interface AgentFormProps {
   agent?: AgentConfig;
+  agents?: AgentSummary[];
   onSave: (data: CreateAgentInput) => Promise<void>;
   onBack: () => void;
 }
 
-export function AgentForm({ agent, onSave, onBack }: AgentFormProps) {
+export function AgentForm({ agent, agents, onSave, onBack }: AgentFormProps) {
   const [name, setName] = useState(agent?.name ?? "");
   const [systemPrompt, setSystemPrompt] = useState(agent?.systemPrompt ?? "");
   const [model, setModel] = useState(agent?.model ?? "claude-sonnet-4-20250514");
@@ -24,6 +25,7 @@ export function AgentForm({ agent, onSave, onBack }: AgentFormProps) {
   const [allowed, setAllowed] = useState(agent?.topicBoundaries?.allowed.join("\n") ?? "");
   const [blocked, setBlocked] = useState(agent?.topicBoundaries?.blocked.join("\n") ?? "");
   const [boundaryMessage, setBoundaryMessage] = useState(agent?.topicBoundaries?.boundaryMessage ?? "");
+  const [delegates, setDelegates] = useState<string[]>(agent?.delegates ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +44,10 @@ export function AgentForm({ agent, onSave, onBack }: AgentFormProps) {
       maxTokens,
       avatar: { emoji, color },
     };
+
+    if (delegates.length > 0) {
+      data.delegates = delegates;
+    }
 
     if (showGuardrails && (allowed.trim() || blocked.trim())) {
       data.topicBoundaries = {
@@ -157,6 +163,57 @@ export function AgentForm({ agent, onSave, onBack }: AgentFormProps) {
               </div>
             </div>
           </div>
+
+          {/* Delegates Picker */}
+          {agents && agents.length > 0 && (
+            <div>
+              <label className="mb-1.5 block text-xs text-muted">Delegate To (optional)</label>
+              <div className="flex flex-col gap-2">
+                {delegates.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {delegates.map((id) => {
+                      const delegateAgent = agents.find((a) => a.id === id);
+                      return (
+                        <span
+                          key={id}
+                          className="flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs text-primary"
+                        >
+                          <span>{delegateAgent?.avatar?.emoji ?? "🤖"}</span>
+                          <span>{delegateAgent?.name ?? id}</span>
+                          <button
+                            onClick={() => setDelegates(delegates.filter((d) => d !== id))}
+                            className="ml-0.5 rounded-full hover:text-primary/70"
+                            aria-label={`Remove ${delegateAgent?.name ?? id}`}
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && !delegates.includes(val)) {
+                      setDelegates([...delegates, val]);
+                    }
+                  }}
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                >
+                  <option value="">Add delegate agent...</option>
+                  {agents
+                    .filter((a) => a.id !== agent?.id && !delegates.includes(a.id))
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.avatar?.emoji} {a.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Model / Temperature / MaxTokens */}
           <div className="flex gap-3">
