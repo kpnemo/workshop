@@ -43,6 +43,7 @@ export function loadAgents(agentsDir: string): Map<string, AgentConfig> {
         },
         topicBoundaries: data.topicBoundaries,
         tools: data.tools,
+        delegates: data.delegates,
       };
 
       agents.set(id, config);
@@ -67,6 +68,9 @@ export function saveAgent(agentsDir: string, id: string, config: AgentConfig): v
   }
   if (config.tools && config.tools.length > 0) {
     frontMatter.tools = config.tools;
+  }
+  if (config.delegates && config.delegates.length > 0) {
+    frontMatter.delegates = config.delegates;
   }
   const fileContent = matter.stringify(config.systemPrompt, frontMatter);
   const filePath = path.join(agentsDir, `${id}.md`);

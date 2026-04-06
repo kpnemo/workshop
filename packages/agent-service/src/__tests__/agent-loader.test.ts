@@ -228,4 +228,36 @@ No avatar.`;
   it("deleteAgent throws when file does not exist", () => {
     expect(() => deleteAgent(tmpDir, "nonexistent")).toThrow();
   });
+
+  it("parses delegates field from frontmatter", () => {
+    const md = `---
+name: Main Agent
+model: claude-sonnet-4-20250514
+delegates:
+  - schedule-agent
+  - weather-agent
+---
+You are a main agent.`;
+
+    fs.writeFileSync(path.join(tmpDir, "main-agent.md"), md);
+    const agents = loadAgents(tmpDir);
+    const agent = agents.get("main-agent")!;
+    expect(agent.delegates).toEqual(["schedule-agent", "weather-agent"]);
+  });
+
+  it("saves delegates field in frontmatter", () => {
+    const config: typeof import("../services/agent-loader").AgentConfig = {
+      id: "main-agent",
+      name: "Main Agent",
+      model: "claude-sonnet-4-20250514",
+      maxTokens: 1024,
+      temperature: 0.7,
+      systemPrompt: "You are a main agent.",
+      avatar: { emoji: "🤖", color: "#6c5ce7" },
+      delegates: ["schedule-agent", "weather-agent"],
+    };
+    saveAgent(tmpDir, "main-agent", config);
+    const agents = loadAgents(tmpDir);
+    expect(agents.get("main-agent")!.delegates).toEqual(["schedule-agent", "weather-agent"]);
+  });
 });
