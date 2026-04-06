@@ -6,6 +6,8 @@ import { useAgents } from "./hooks/use-agents";
 import { Sidebar } from "./components/sidebar";
 import { ChatContainer } from "./components/chat-container";
 import { AgentDrawer } from "./components/agent-drawer";
+import { CopilotPanel } from "./components/copilot-panel";
+import { useCopilot } from "./hooks/use-copilot";
 
 function AuthenticatedApp() {
   const { agents, createAgent, updateAgent, deleteAgent, loadAgents } = useAgents();
@@ -19,6 +21,13 @@ function AuthenticatedApp() {
     switchAgent,
   } = useChat(agents[0]?.id ?? null, agents.map((a) => a.id));
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const copilot = useCopilot({
+    agents,
+    onAgentReady: () => {
+      loadAgents();
+      setDrawerOpen(true);
+    },
+  });
 
   return (
     <div className="flex h-full">
@@ -53,6 +62,15 @@ function AuthenticatedApp() {
           onAgentSaved={loadAgents}
         />
       )}
+      <CopilotPanel
+        messages={copilot.messages}
+        isStreaming={copilot.isStreaming}
+        isOpen={copilot.isOpen}
+        onSend={copilot.sendMessage}
+        onToggle={copilot.toggle}
+        onMinimize={copilot.minimize}
+        onReset={copilot.reset}
+      />
     </div>
   );
 }
