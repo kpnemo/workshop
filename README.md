@@ -6,7 +6,7 @@ Build conversational AI agents with tools, guardrails, and personas. Powered by 
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18+
+- [Node.js](https://nodejs.org/) v20+
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - [Anthropic API key](https://console.anthropic.com/settings/keys)
 
@@ -44,12 +44,15 @@ You are a weather agent. Browse the web to find current weather for any location
 | Tool | Description |
 |------|-------------|
 | `browse_url` | Fetch and extract text content from web pages |
+| `delegate_to` | Delegate the conversation to a specialist agent |
+| `hand_back` | Hand the conversation back to the main agent after completing a delegated task |
 
 ### Features
 
 - Chat with AI agents via a web UI
 - Real-time streaming responses (SSE)
 - Per-agent tools (web browsing, more coming)
+- Multi-agent delegation (agents hand off to specialists and back)
 - Topic guardrails (allow/block specific topics)
 - Agent management (create, edit, delete via UI)
 

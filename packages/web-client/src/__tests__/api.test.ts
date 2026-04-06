@@ -79,8 +79,8 @@ describe("sendMessage", () => {
 
     await sendMessage("conv-123", "Hi", { onDelta, onBlocked, onError, onTitle: vi.fn(), onDone });
 
-    expect(onDelta).toHaveBeenCalledWith("Hello");
-    expect(onDelta).toHaveBeenCalledWith(" world");
+    expect(onDelta).toHaveBeenCalledWith("Hello", undefined);
+    expect(onDelta).toHaveBeenCalledWith(" world", undefined);
     expect(onDone).toHaveBeenCalled();
     expect(onBlocked).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();

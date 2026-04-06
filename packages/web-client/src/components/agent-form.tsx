@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import type { AgentConfig, AgentSummary, CreateAgentInput } from "../types";
+import { fetchAvailableTools, type AvailableTool } from "../lib/agents-api";
 
 const AVATAR_COLORS = ["#6c5ce7", "#00b894", "#fd79a8", "#fdcb6e", "#74b9ff"];
 const DEFAULT_EMOJIS = ["🤖", "📝", "💻", "🎯", "🧠", "🔧", "🎨", "🛡️"];
@@ -26,8 +27,14 @@ export function AgentForm({ agent, agents, onSave, onBack }: AgentFormProps) {
   const [blocked, setBlocked] = useState(agent?.topicBoundaries?.blocked.join("\n") ?? "");
   const [boundaryMessage, setBoundaryMessage] = useState(agent?.topicBoundaries?.boundaryMessage ?? "");
   const [delegates, setDelegates] = useState<string[]>(agent?.delegates ?? []);
+  const [tools, setTools] = useState<string[]>(agent?.tools ?? []);
+  const [availableTools, setAvailableTools] = useState<AvailableTool[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAvailableTools().then(setAvailableTools);
+  }, []);
 
   const isValid = name.trim() !== "" && systemPrompt.trim() !== "";
 
@@ -44,6 +51,8 @@ export function AgentForm({ agent, agents, onSave, onBack }: AgentFormProps) {
       maxTokens,
       avatar: { emoji, color },
     };
+
+    data.tools = tools;
 
     if (delegates.length > 0) {
       data.delegates = delegates;
@@ -146,23 +155,60 @@ export function AgentForm({ agent, agents, onSave, onBack }: AgentFormProps) {
               className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none" />
           </div>
 
-          {/* Tools Info */}
-          <div className="rounded-md border border-border bg-surface/50 px-3 py-2.5">
-            <p className="text-xs text-muted">
-              Tools are configured in the agent's markdown file. Add a <code className="rounded bg-background px-1 py-0.5 text-[11px] text-foreground">tools:</code> field to the frontmatter:
-            </p>
-            <pre className="mt-2 rounded bg-background px-2.5 py-2 text-[11px] leading-relaxed text-foreground">
-{`tools:
-  - browse_url`}
-            </pre>
-            <div className="mt-2.5">
-              <span className="text-[11px] text-muted">Available tools:</span>
-              <div className="mt-1 flex items-center gap-1.5">
-                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[11px] text-primary">browse_url</span>
-                <span className="text-[11px] text-muted">Fetch and extract text content from web pages</span>
+          {/* Tools */}
+          {availableTools.length > 0 && (
+            <div>
+              <label className="mb-1.5 block text-xs text-muted">Tools (optional)</label>
+              <div className="flex flex-col gap-2">
+                {tools.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tools.map((toolName) => {
+                      const toolInfo = availableTools.find((t) => t.name === toolName);
+                      return (
+                        <span
+                          key={toolName}
+                          className="flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs text-primary"
+                        >
+                          <span>{toolName}</span>
+                          <button
+                            onClick={() => setTools(tools.filter((t) => t !== toolName))}
+                            className="ml-0.5 rounded-full hover:text-primary/70"
+                            aria-label={`Remove ${toolName}`}
+                          >
+                            <X size={10} />
+                          </button>
+                          {toolInfo && (
+                            <span className="text-[10px] text-muted">{toolInfo.description}</span>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {availableTools.filter((t) => !tools.includes(t.name)).length > 0 && (
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val && !tools.includes(val)) {
+                        setTools([...tools, val]);
+                      }
+                    }}
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="">Add tool...</option>
+                    {availableTools
+                      .filter((t) => !tools.includes(t.name))
+                      .map((t) => (
+                        <option key={t.name} value={t.name}>
+                          {t.name} — {t.description}
+                        </option>
+                      ))}
+                  </select>
+                )}
               </div>
             </div>
-          </div>
+          )}
 
           {/* Delegates Picker */}
           {agents && agents.length > 0 && (

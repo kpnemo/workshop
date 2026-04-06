@@ -58,7 +58,7 @@ console.log(`[startup] Tool service initialized`);
 
 // Routes
 app.use("/auth", createAuthRouter(db, JWT_SECRET));
-app.use("/agents", createAgentsRouter(agents, AGENTS_DIR));
+app.use("/agents", createAgentsRouter(agents, AGENTS_DIR, toolService));
 app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService));
 
 // Start server

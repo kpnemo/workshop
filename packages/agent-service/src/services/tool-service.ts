@@ -23,6 +23,13 @@ export class ToolService {
     this.tools.set(tool.name, tool);
   }
 
+  getAvailableTools(): Array<{ name: string; description: string }> {
+    return [...this.tools.values()].map((t) => ({
+      name: t.name,
+      description: t.definition.description ?? "",
+    }));
+  }
+
   registerDefaults(): void {
     this.register(createBrowseUrlTool(this.browserManager));
   }

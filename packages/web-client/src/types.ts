@@ -84,6 +84,7 @@ export interface AgentConfig {
   temperature: number;
   systemPrompt: string;
   avatar: AgentAvatar;
+  tools?: string[];
   delegates?: string[];
   topicBoundaries?: {
     allowed: string[];
@@ -99,6 +100,7 @@ export interface CreateAgentInput {
   maxTokens?: number;
   temperature?: number;
   avatar?: AgentAvatar;
+  tools?: string[];
   delegates?: string[];
   topicBoundaries?: {
     allowed: string[];

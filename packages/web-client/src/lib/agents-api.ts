@@ -2,6 +2,17 @@ import type { AgentSummary, AgentConfig, CreateAgentInput } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
+export interface AvailableTool {
+  name: string;
+  description: string;
+}
+
+export async function fetchAvailableTools(): Promise<AvailableTool[]> {
+  const res = await fetch(`${BASE_URL}/api/agents/tools`);
+  if (!res.ok) { return []; }
+  return res.json();
+}
+
 export async function fetchAgents(): Promise<AgentSummary[]> {
   const res = await fetch(`${BASE_URL}/api/agents`);
   if (!res.ok) { const body = await res.json(); throw new Error(body.error || "Failed to fetch agents"); }

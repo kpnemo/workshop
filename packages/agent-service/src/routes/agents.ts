@@ -2,12 +2,13 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { loadAgents, saveAgent, deleteAgent } from "../services/agent-loader.js";
 import type { AgentConfig } from "../types.js";
+import type { ToolService } from "../services/tool-service.js";
 
 function slugify(name: string): string {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: string): Router {
+export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: string, toolService?: ToolService): Router {
   const router = Router();
 
   function refreshAgents(): void {
@@ -25,6 +26,12 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
     res.json(list);
   });
 
+  // GET /agents/tools - List available tools (must be before /:id)
+  router.get("/tools", (_req: Request, res: Response) => {
+    const tools = toolService ? toolService.getAvailableTools() : [];
+    res.json(tools);
+  });
+
   router.get("/:id", (req: Request, res: Response) => {
     const agent = agents.get(req.params.id);
     if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
@@ -32,7 +39,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
   });
 
   router.post("/", (req: Request, res: Response) => {
-    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries, delegates } = req.body;
+    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries, delegates, tools } = req.body;
     if (!name || typeof name !== "string" || name.trim() === "") { res.status(400).json({ error: "name is required" }); return; }
     if (!systemPrompt || typeof systemPrompt !== "string" || systemPrompt.trim() === "") { res.status(400).json({ error: "systemPrompt is required" }); return; }
     const temp = temperature ?? 0.7;
@@ -47,6 +54,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
       avatar: { emoji: avatar?.emoji || "🤖", color: avatar?.color || "#6c5ce7" },
       topicBoundaries: topicBoundaries || undefined,
       delegates: delegates || undefined,
+      tools: tools || undefined,
     };
     saveAgent(agentsDir, id, config);
     refreshAgents();
@@ -56,7 +64,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
   router.put("/:id", (req: Request, res: Response) => {
     const { id } = req.params;
     if (!agents.has(id)) { res.status(404).json({ error: "Agent not found" }); return; }
-    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries, delegates } = req.body;
+    const { name, systemPrompt, model, maxTokens, temperature, avatar, topicBoundaries, delegates, tools } = req.body;
     if (!name || typeof name !== "string" || name.trim() === "") { res.status(400).json({ error: "name is required" }); return; }
     if (!systemPrompt || typeof systemPrompt !== "string" || systemPrompt.trim() === "") { res.status(400).json({ error: "systemPrompt is required" }); return; }
     const existing = agents.get(id)!;
@@ -67,6 +75,7 @@ export function createAgentsRouter(agents: Map<string, AgentConfig>, agentsDir: 
       avatar: { emoji: avatar?.emoji || existing.avatar.emoji, color: avatar?.color || existing.avatar.color },
       topicBoundaries: topicBoundaries || undefined,
       delegates: delegates || undefined,
+      tools: tools || undefined,
     };
     saveAgent(agentsDir, id, config);
     refreshAgents();

@@ -230,6 +230,12 @@ export function createConversationRouter(
           );
           const delegationContext = delegationStart?.delegationMeta?.context ?? "No context provided";
           systemPrompt = `[Delegation Context]\nYou have been asked to help with a specific task.\nContext from the main agent: "${delegationContext}"\n\nWhen you have completed the task, you MUST call the hand_back tool with a brief summary of what you accomplished. Do not continue the conversation after handing back.\n\n${systemPrompt}`;
+
+          // When specialist is invoked immediately after delegation (no user message yet),
+          // inject the delegation context as a synthetic user message so Claude has something to respond to
+          if (claudeMessages.length === 0) {
+            claudeMessages.push({ role: "user", content: delegationContext });
+          }
         }
 
         const delegationOptions = { isMainAgent: curIsMain, isActiveDelegate: curIsDelegate };
