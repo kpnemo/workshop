@@ -1,8 +1,18 @@
+export interface DelegationMeta {
+  type: "delegation_start" | "delegation_end";
+  from: string;
+  to: string;
+  context?: string;
+  summary?: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  agentId?: string | null;
+  delegationMeta?: DelegationMeta | null;
 }
 
 export interface ConversationSummary {
@@ -31,21 +41,26 @@ export interface ConversationResponse {
 export interface ConversationDetail {
   conversationId: string;
   agentId: string;
+  activeAgent?: string | null;
   title: string | null;
   createdAt: string;
   messages: Array<{
-    role: "user" | "assistant";
+    role: "user" | "assistant" | "system";
     content: string;
     timestamp: string;
+    agentId?: string | null;
+    delegationMeta?: DelegationMeta | null;
   }>;
 }
 
 export interface SendMessageCallbacks {
-  onDelta: (text: string) => void;
+  onDelta: (text: string, agentId?: string) => void;
   onBlocked: (message: string) => void;
   onError: (message: string) => void;
   onTitle: (title: string) => void;
   onDone: () => void;
+  onDelegationStart?: (data: { from: string; to: string; agentName: string; emoji: string; color: string; context: string }) => void;
+  onDelegationEnd?: (data: { from: string; to: string; agentName: string; summary: string }) => void;
 }
 
 export interface AgentAvatar {
@@ -69,6 +84,7 @@ export interface AgentConfig {
   temperature: number;
   systemPrompt: string;
   avatar: AgentAvatar;
+  delegates?: string[];
   topicBoundaries?: {
     allowed: string[];
     blocked: string[];
@@ -83,6 +99,7 @@ export interface CreateAgentInput {
   maxTokens?: number;
   temperature?: number;
   avatar?: AgentAvatar;
+  delegates?: string[];
   topicBoundaries?: {
     allowed: string[];
     blocked: string[];

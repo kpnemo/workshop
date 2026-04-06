@@ -158,7 +158,7 @@ export async function sendMessage(
         const data = JSON.parse(line.slice(6));
         switch (currentEvent) {
           case "delta":
-            callbacks.onDelta(data.text);
+            callbacks.onDelta(data.text, data.agentId);
             break;
           case "blocked":
             callbacks.onBlocked(data.message);
@@ -168,6 +168,12 @@ export async function sendMessage(
             break;
           case "title":
             callbacks.onTitle(data.title);
+            break;
+          case "delegation_start":
+            callbacks.onDelegationStart?.(data);
+            break;
+          case "delegation_end":
+            callbacks.onDelegationEnd?.(data);
             break;
           case "done":
             callbacks.onDone();
