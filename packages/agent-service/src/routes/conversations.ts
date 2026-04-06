@@ -107,6 +107,24 @@ export function createConversationRouter(
     }
 
     const agent = agents.get(conversation.agentId)!;
+
+    // Delegation routing: use active_agent if set, otherwise conversation's agent
+    const activeAgentId = conversation.activeAgent ?? conversation.agentId;
+    const activeAgent = agents.get(activeAgentId);
+
+    if (!activeAgent) {
+      db.setActiveAgent(conversation.id, null);
+      startSSE(res);
+      writeSSE(res, "error", { message: `Agent "${activeAgentId}" not found. Returning to main agent.` });
+      writeSSE(res, "delegation_end", { from: activeAgentId, to: conversation.agentId, agentName: agent.name, summary: "Agent unavailable" });
+      writeSSE(res, "done", { conversationId: conversation.id });
+      res.end();
+      return;
+    }
+
+    const isMainAgent = activeAgentId === conversation.agentId;
+    const isActiveDelegate = !isMainAgent;
+
     console.log(`[message] New message in conversation ${conversation.id} (agent: "${conversation.agentId}")`);
     console.log(`[message] User: "${message.slice(0, 100)}${message.length > 100 ? "..." : ""}"`);
 
@@ -137,13 +155,62 @@ export function createConversationRouter(
     const updatedConversation = db.getConversation(conversation.id)!;
 
     // Build messages array for Claude
-    const claudeMessages = updatedConversation.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    let claudeMessages: Array<{ role: string; content: any }>;
+
+    if (isActiveDelegate) {
+      const delegationStartIdx = updatedConversation.messages.findLastIndex(
+        (m) => m.delegationMeta?.type === "delegation_start"
+      );
+      const messagesAfterDelegation = delegationStartIdx >= 0
+        ? updatedConversation.messages.slice(delegationStartIdx + 1)
+        : updatedConversation.messages;
+
+      claudeMessages = messagesAfterDelegation
+        .filter((m) => m.role !== "system")
+        .map((m) => ({ role: m.role, content: m.content }));
+    } else {
+      claudeMessages = updatedConversation.messages
+        .filter((m) => {
+          if (m.agentId && m.agentId !== conversation.agentId && !m.delegationMeta) return false;
+          if (m.delegationMeta?.type === "delegation_start") return false;
+          if (m.delegationMeta?.type === "delegation_end") return true;
+          return m.role !== "system";
+        })
+        .map((m) => {
+          if (m.delegationMeta?.type === "delegation_end") {
+            return { role: "user" as const, content: `[Specialist agent completed task: ${m.delegationMeta.summary}]` };
+          }
+          return { role: m.role, content: m.content };
+        });
+    }
+
+    let systemPrompt = activeAgent.systemPrompt;
+
+    if (isMainAgent && activeAgent.delegates && activeAgent.delegates.length > 0) {
+      const delegateDescriptions = activeAgent.delegates
+        .map((delegateId) => {
+          const delegateAgent = agents.get(delegateId);
+          if (!delegateAgent) return null;
+          const firstLine = delegateAgent.systemPrompt.split("\n")[0];
+          return `• ${delegateId} ("${delegateAgent.name}") — ${firstLine}`;
+        })
+        .filter(Boolean)
+        .join("\n");
+
+      systemPrompt += `\n\n[Available Specialist Agents]\nYou can delegate tasks to these specialist agents using the delegate_to tool:\n\n${delegateDescriptions}\n\nWhen a user's request matches a specialist's capability, delegate to them with a clear context summary. Handle general conversation yourself.`;
+    }
+
+    if (isActiveDelegate) {
+      const delegationStart = updatedConversation.messages.findLast(
+        (m) => m.delegationMeta?.type === "delegation_start"
+      );
+      const delegationContext = delegationStart?.delegationMeta?.context ?? "No context provided";
+      systemPrompt = `[Delegation Context]\nYou have been asked to help with a specific task.\nContext from the main agent: "${delegationContext}"\n\nWhen you have completed the task, you MUST call the hand_back tool with a brief summary of what you accomplished. Do not continue the conversation after handing back.\n\n${systemPrompt}`;
+    }
 
     const MAX_TOOL_ITERATIONS = 5;
-    const tools = toolService ? toolService.getToolsForAgent(agent) : [];
+    const delegationOptions = { isMainAgent, isActiveDelegate };
+    const tools = toolService ? toolService.getToolsForAgent(activeAgent, delegationOptions) : [];
 
     // Messages array for the agentic loop — starts with conversation history
     // and grows with tool_use/tool_result pairs during tool execution
@@ -159,10 +226,10 @@ export function createConversationRouter(
         iterations++;
 
         const streamParams: Record<string, any> = {
-          model: agent.model,
-          max_tokens: agent.maxTokens,
-          temperature: agent.temperature,
-          system: agent.systemPrompt,
+          model: activeAgent.model,
+          max_tokens: activeAgent.maxTokens,
+          temperature: activeAgent.temperature,
+          system: systemPrompt,
           messages: loopMessages,
         };
         if (tools.length > 0) {
@@ -187,7 +254,7 @@ export function createConversationRouter(
             event.delta.type === "text_delta"
           ) {
             fullResponse += event.delta.text;
-            writeSSE(res, "delta", { text: event.delta.text });
+            writeSSE(res, "delta", { text: event.delta.text, agentId: activeAgentId });
           }
         }
 
@@ -225,7 +292,8 @@ export function createConversationRouter(
           writeSSE(res, "tool_start", { tool: toolUse.name, input: toolUse.input });
 
           const toolStart = Date.now();
-          const result = await toolService.execute(toolUse.name, toolUse.input);
+          const toolContext = { conversationId: conversation.id, res, db, agents };
+          const result = await toolService.execute(toolUse.name, toolUse.input, toolContext);
           const toolMs = Date.now() - toolStart;
 
           console.log(`[tool] ${toolUse.name} completed (${toolMs}ms, ${result.length} chars)`);
@@ -244,13 +312,19 @@ export function createConversationRouter(
           content: toolResults,
         });
 
+        // Break loop if a delegation tool was invoked (delegate_to or hand_back)
+        const hasDelegation = toolResults.some((r) => r.content.startsWith("[DELEGATION]"));
+        if (hasDelegation) {
+          break;
+        }
+
         // Reset fullResponse for the next iteration — we only save the final text
         fullResponse = "";
       }
 
       // Save final assistant response
       if (fullResponse) {
-        db.addMessage(conversation.id, "assistant", fullResponse);
+        db.addMessage(conversation.id, "assistant", fullResponse, activeAgentId);
       }
 
       // Generate title if this is the first exchange (no title yet)
@@ -304,12 +378,15 @@ export function createConversationRouter(
     res.json({
       conversationId: conversation.id,
       agentId: conversation.agentId,
+      activeAgent: conversation.activeAgent,
       title: conversation.title,
       createdAt: conversation.createdAt.toISOString(),
       messages: conversation.messages.map((m) => ({
         role: m.role,
         content: m.content,
         timestamp: m.timestamp.toISOString(),
+        agentId: m.agentId ?? null,
+        delegationMeta: m.delegationMeta ?? null,
       })),
     });
   });
