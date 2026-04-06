@@ -121,3 +121,45 @@ describe("ToolService", () => {
     expect(tool.execute).toHaveBeenCalledWith({ key: "value" }, context);
   });
 });
+
+describe("Delegation tool injection", () => {
+  let service: ToolService;
+
+  beforeEach(() => {
+    service = new ToolService();
+  });
+
+  it("injects delegate_to for agent with delegates field (main agent)", () => {
+    const agent = makeAgent({
+      tools: ["my_tool"],
+      delegates: ["schedule-agent"],
+    });
+    service.register(makeFakeTool("my_tool"));
+
+    const definitions = service.getToolsForAgent(agent, { isMainAgent: true });
+    const names = definitions.map((d) => d.name);
+    expect(names).toContain("my_tool");
+    expect(names).toContain("delegate_to");
+    expect(names).not.toContain("hand_back");
+  });
+
+  it("injects hand_back for active delegate (not main agent)", () => {
+    const agent = makeAgent({ tools: ["my_tool"] });
+    service.register(makeFakeTool("my_tool"));
+
+    const definitions = service.getToolsForAgent(agent, { isActiveDelegate: true });
+    const names = definitions.map((d) => d.name);
+    expect(names).toContain("my_tool");
+    expect(names).toContain("hand_back");
+    expect(names).not.toContain("delegate_to");
+  });
+
+  it("does not inject delegation tools for regular agent", () => {
+    const agent = makeAgent({ tools: ["my_tool"] });
+    service.register(makeFakeTool("my_tool"));
+
+    const definitions = service.getToolsForAgent(agent);
+    const names = definitions.map((d) => d.name);
+    expect(names).toEqual(["my_tool"]);
+  });
+});

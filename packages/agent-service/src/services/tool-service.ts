@@ -3,6 +3,13 @@ import type { Tool, ToolContext } from "./tools/types.js";
 import type { AgentConfig } from "../types.js";
 import { BrowserManager } from "./tools/browser-manager.js";
 import { createBrowseUrlTool } from "./tools/browse-url.js";
+import { createDelegateToTool } from "./tools/delegate-to.js";
+import { createHandBackTool } from "./tools/hand-back.js";
+
+export interface DelegationOptions {
+  isMainAgent?: boolean;
+  isActiveDelegate?: boolean;
+}
 
 export class ToolService {
   private tools = new Map<string, Tool>();
@@ -20,18 +27,50 @@ export class ToolService {
     this.register(createBrowseUrlTool(this.browserManager));
   }
 
-  getToolsForAgent(agent: AgentConfig): Anthropic.Messages.Tool[] {
-    if (!agent.tools || agent.tools.length === 0) {
-      return [];
+  getToolsForAgent(
+    agent: AgentConfig,
+    delegationOptions?: DelegationOptions
+  ): Anthropic.Messages.Tool[] {
+    const definitions: Anthropic.Messages.Tool[] = [];
+
+    if (agent.tools && agent.tools.length > 0) {
+      for (const name of agent.tools) {
+        const tool = this.tools.get(name);
+        if (tool) {
+          definitions.push(tool.definition);
+        }
+      }
     }
 
-    return agent.tools
-      .map((name) => this.tools.get(name))
-      .filter((tool): tool is Tool => tool !== undefined)
-      .map((tool) => tool.definition);
+    if (delegationOptions?.isMainAgent && agent.delegates && agent.delegates.length > 0) {
+      const delegateTool = createDelegateToTool(agent.delegates);
+      definitions.push(delegateTool.definition);
+    }
+
+    if (delegationOptions?.isActiveDelegate) {
+      const handBackTool = createHandBackTool();
+      definitions.push(handBackTool.definition);
+    }
+
+    return definitions;
   }
 
   async execute(toolName: string, input: unknown, context?: ToolContext): Promise<string> {
+    if (toolName === "delegate_to" && context) {
+      const mainAgent = [...(context.agents?.values() ?? [])].find(
+        (a) => a.delegates && a.delegates.length > 0
+      );
+      if (mainAgent?.delegates) {
+        const tool = createDelegateToTool(mainAgent.delegates);
+        return tool.execute(input, context);
+      }
+    }
+
+    if (toolName === "hand_back" && context) {
+      const tool = createHandBackTool();
+      return tool.execute(input, context);
+    }
+
     const tool = this.tools.get(toolName);
     if (!tool) {
       return `Error: Tool "${toolName}" is not registered.`;
