@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
   listConversations,
@@ -29,6 +29,8 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
     error: null,
   });
 
+  const activeAssistantIdRef = useRef<string | null>(null);
+
   const stableAgentIds = useMemo(() => agentIds, [agentIds.join(",")]);
 
   const resolveAgentId = useCallback((): string | null => {
@@ -54,6 +56,8 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
           role: m.role,
           content: m.content,
           timestamp: new Date(m.timestamp),
+          agentId: m.agentId ?? null,
+          delegationMeta: m.delegationMeta ?? null,
         }));
         setState((s) => ({
           ...s,
@@ -101,6 +105,8 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
         role: m.role,
         content: m.content,
         timestamp: new Date(m.timestamp),
+        agentId: m.agentId ?? null,
+        delegationMeta: m.delegationMeta ?? null,
       }));
       setState((s) => ({
         ...s,
@@ -172,6 +178,8 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
         id: assistantMessageId, role: "assistant", content: "", timestamp: new Date(),
       };
 
+      activeAssistantIdRef.current = assistantMessageId;
+
       setState((s) => ({
         ...s,
         messages: [...s.messages, userMessage, assistantMessage],
@@ -179,11 +187,15 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
       }));
 
       apiSendMessage(state.conversationId, text, {
-        onDelta: (deltaText) => {
+        onDelta: (deltaText, agentId) => {
+          const targetId = activeAssistantIdRef.current;
+          if (!targetId) return;
           setState((s) => ({
             ...s,
             messages: s.messages.map((m) =>
-              m.id === assistantMessageId ? { ...m, content: m.content + deltaText } : m
+              m.id === targetId
+                ? { ...m, content: m.content + deltaText, agentId: agentId ?? null }
+                : m
             ),
           }));
         },
@@ -220,6 +232,51 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
                   : c
               )
               .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+          }));
+        },
+        onDelegationStart: (data) => {
+          const specialistMessageId = uuidv4();
+          activeAssistantIdRef.current = specialistMessageId;
+          const delegationMessage: Message = {
+            id: uuidv4(),
+            role: "system",
+            content: "",
+            timestamp: new Date(),
+            delegationMeta: {
+              type: "delegation_start",
+              from: data.from,
+              to: data.to,
+              context: data.context,
+            },
+          };
+          const specialistMessage: Message = {
+            id: specialistMessageId,
+            role: "assistant",
+            content: "",
+            timestamp: new Date(),
+            agentId: data.to,
+          };
+          setState((s) => ({
+            ...s,
+            messages: [...s.messages, delegationMessage, specialistMessage],
+          }));
+        },
+        onDelegationEnd: (data) => {
+          const delegationMessage: Message = {
+            id: uuidv4(),
+            role: "system",
+            content: "",
+            timestamp: new Date(),
+            delegationMeta: {
+              type: "delegation_end",
+              from: data.from,
+              to: data.to,
+              summary: data.summary,
+            },
+          };
+          setState((s) => ({
+            ...s,
+            messages: [...s.messages, delegationMessage],
           }));
         },
       });
