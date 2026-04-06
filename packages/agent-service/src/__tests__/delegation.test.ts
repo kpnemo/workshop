@@ -24,6 +24,11 @@ function makeContext(overrides: Partial<ToolContext> = {}): ToolContext {
     db: {
       setActiveAgent: vi.fn(),
       addDelegationMessage: vi.fn(),
+      getConversation: vi.fn().mockReturnValue({
+        id: "conv-1",
+        agentId: "main-agent",
+        activeAgent: "schedule-agent",
+      }),
     } as any,
     agents: new Map<string, AgentConfig>([
       ["main-agent", makeAgent("main-agent", { delegates: ["schedule-agent"] })],

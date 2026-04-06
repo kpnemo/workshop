@@ -151,180 +151,207 @@ export function createConversationRouter(
     // Add user message to history
     db.addMessage(conversation.id, "user", message);
 
-    // Reload conversation to get all messages including the one just added
-    const updatedConversation = db.getConversation(conversation.id)!;
-
-    // Build messages array for Claude
-    let claudeMessages: Array<{ role: string; content: any }>;
-
-    if (isActiveDelegate) {
-      const delegationStartIdx = updatedConversation.messages.findLastIndex(
-        (m) => m.delegationMeta?.type === "delegation_start"
-      );
-      const messagesAfterDelegation = delegationStartIdx >= 0
-        ? updatedConversation.messages.slice(delegationStartIdx + 1)
-        : updatedConversation.messages;
-
-      claudeMessages = messagesAfterDelegation
-        .filter((m) => m.role !== "system")
-        .map((m) => ({ role: m.role, content: m.content }));
-    } else {
-      claudeMessages = updatedConversation.messages
-        .filter((m) => {
-          if (m.agentId && m.agentId !== conversation.agentId && !m.delegationMeta) return false;
-          if (m.delegationMeta?.type === "delegation_start") return false;
-          if (m.delegationMeta?.type === "delegation_end") return true;
-          return m.role !== "system";
-        })
-        .map((m) => {
-          if (m.delegationMeta?.type === "delegation_end") {
-            return { role: "user" as const, content: `[Specialist agent completed task: ${m.delegationMeta.summary}]` };
-          }
-          return { role: m.role, content: m.content };
-        });
-    }
-
-    let systemPrompt = activeAgent.systemPrompt;
-
-    if (isMainAgent && activeAgent.delegates && activeAgent.delegates.length > 0) {
-      const delegateDescriptions = activeAgent.delegates
-        .map((delegateId) => {
-          const delegateAgent = agents.get(delegateId);
-          if (!delegateAgent) return null;
-          const firstLine = delegateAgent.systemPrompt.split("\n")[0];
-          return `• ${delegateId} ("${delegateAgent.name}") — ${firstLine}`;
-        })
-        .filter(Boolean)
-        .join("\n");
-
-      systemPrompt += `\n\n[Available Specialist Agents]\nYou can delegate tasks to these specialist agents using the delegate_to tool:\n\n${delegateDescriptions}\n\nWhen a user's request matches a specialist's capability, delegate to them with a clear context summary. Handle general conversation yourself.`;
-    }
-
-    if (isActiveDelegate) {
-      const delegationStart = updatedConversation.messages.findLast(
-        (m) => m.delegationMeta?.type === "delegation_start"
-      );
-      const delegationContext = delegationStart?.delegationMeta?.context ?? "No context provided";
-      systemPrompt = `[Delegation Context]\nYou have been asked to help with a specific task.\nContext from the main agent: "${delegationContext}"\n\nWhen you have completed the task, you MUST call the hand_back tool with a brief summary of what you accomplished. Do not continue the conversation after handing back.\n\n${systemPrompt}`;
-    }
-
-    const MAX_TOOL_ITERATIONS = 5;
-    const delegationOptions = { isMainAgent, isActiveDelegate };
-    const tools = toolService ? toolService.getToolsForAgent(activeAgent, delegationOptions) : [];
-
-    // Messages array for the agentic loop — starts with conversation history
-    // and grows with tool_use/tool_result pairs during tool execution
-    const loopMessages: Array<{ role: string; content: any }> = claudeMessages;
-
     startSSE(res);
 
     try {
+      const MAX_TOOL_ITERATIONS = 5;
+
+      // Outer delegation loop — re-runs when delegate_to switches the active agent
       let fullResponse = "";
-      let iterations = 0;
+      let continueWithDelegation = true;
+      while (continueWithDelegation) {
+        continueWithDelegation = false;
 
-      while (iterations < MAX_TOOL_ITERATIONS) {
-        iterations++;
+        // Reload conversation to get latest state (including active_agent changes from delegation)
+        const currentConv = db.getConversation(conversation.id)!;
+        const curAgentId = currentConv.activeAgent ?? currentConv.agentId;
+        const curAgent = agents.get(curAgentId);
 
-        const streamParams: Record<string, any> = {
-          model: activeAgent.model,
-          max_tokens: activeAgent.maxTokens,
-          temperature: activeAgent.temperature,
-          system: systemPrompt,
-          messages: loopMessages,
-        };
-        if (tools.length > 0) {
-          streamParams.tools = tools;
-        }
-
-        const streamStart = Date.now();
-        let stream;
-        try {
-          console.log(`[stream] Starting Claude stream (model: ${agent.model}, iteration: ${iterations}, messages: ${loopMessages.length})`);
-          stream = getClient().messages.stream(streamParams as any);
-        } catch (err) {
-          console.error("[stream] Failed to create stream:", err);
-          writeSSE(res, "error", { message: "LLM service error" });
+        if (!curAgent) {
+          db.setActiveAgent(conversation.id, null);
+          writeSSE(res, "error", { message: `Agent "${curAgentId}" not found. Returning to main agent.` });
+          writeSSE(res, "delegation_end", { from: curAgentId, to: conversation.agentId, agentName: agent.name, summary: "Agent unavailable" });
           break;
         }
 
-        // Stream text deltas to frontend in real-time
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            fullResponse += event.delta.text;
-            writeSSE(res, "delta", { text: event.delta.text, agentId: activeAgentId });
-          }
+        const curIsMain = curAgentId === conversation.agentId;
+        const curIsDelegate = !curIsMain;
+
+        // Build messages array for Claude — delegation-aware
+        let claudeMessages: Array<{ role: string; content: any }>;
+
+        if (curIsDelegate) {
+          const delegationStartIdx = currentConv.messages.findLastIndex(
+            (m) => m.delegationMeta?.type === "delegation_start"
+          );
+          const messagesAfterDelegation = delegationStartIdx >= 0
+            ? currentConv.messages.slice(delegationStartIdx + 1)
+            : currentConv.messages;
+
+          claudeMessages = messagesAfterDelegation
+            .filter((m) => m.role !== "system")
+            .map((m) => ({ role: m.role, content: m.content }));
+        } else {
+          claudeMessages = currentConv.messages
+            .filter((m) => {
+              if (m.agentId && m.agentId !== conversation.agentId && !m.delegationMeta) return false;
+              if (m.delegationMeta?.type === "delegation_start") return false;
+              if (m.delegationMeta?.type === "delegation_end") return true;
+              return m.role !== "system";
+            })
+            .map((m) => {
+              if (m.delegationMeta?.type === "delegation_end") {
+                return { role: "user" as const, content: `[Specialist agent completed task: ${m.delegationMeta.summary}]` };
+              }
+              return { role: m.role, content: m.content };
+            });
         }
 
-        // Get the final message for stop_reason and tool_use blocks
-        const finalMessage = await stream.finalMessage();
-        const streamMs = Date.now() - streamStart;
+        // Build system prompt
+        let systemPrompt = curAgent.systemPrompt;
 
-        console.log(`[stream] Response complete (${fullResponse.length} chars, ${streamMs}ms, stop: ${finalMessage.stop_reason})`);
+        if (curIsMain && curAgent.delegates && curAgent.delegates.length > 0) {
+          const delegateDescriptions = curAgent.delegates
+            .map((delegateId) => {
+              const delegateAgent = agents.get(delegateId);
+              if (!delegateAgent) return null;
+              const firstLine = delegateAgent.systemPrompt.split("\n")[0];
+              return `• ${delegateId} ("${delegateAgent.name}") — ${firstLine}`;
+            })
+            .filter(Boolean)
+            .join("\n");
 
-        // Check if Claude wants to use tools
-        if (finalMessage.stop_reason !== "tool_use") {
-          break; // No tool calls — we're done
+          systemPrompt += `\n\n[Available Specialist Agents]\nYou can delegate tasks to these specialist agents using the delegate_to tool:\n\n${delegateDescriptions}\n\nWhen a user's request matches a specialist's capability, delegate to them with a clear context summary. Handle general conversation yourself.`;
         }
 
-        // Extract tool_use blocks
-        const toolUseBlocks = finalMessage.content.filter(
-          (block: any) => block.type === "tool_use"
-        );
-
-        if (toolUseBlocks.length === 0 || !toolService) {
-          break;
+        if (curIsDelegate) {
+          const delegationStart = currentConv.messages.findLast(
+            (m) => m.delegationMeta?.type === "delegation_start"
+          );
+          const delegationContext = delegationStart?.delegationMeta?.context ?? "No context provided";
+          systemPrompt = `[Delegation Context]\nYou have been asked to help with a specific task.\nContext from the main agent: "${delegationContext}"\n\nWhen you have completed the task, you MUST call the hand_back tool with a brief summary of what you accomplished. Do not continue the conversation after handing back.\n\n${systemPrompt}`;
         }
 
-        // Push assistant message with all content blocks (text + tool_use)
-        loopMessages.push({
-          role: "assistant",
-          content: finalMessage.content,
-        });
+        const delegationOptions = { isMainAgent: curIsMain, isActiveDelegate: curIsDelegate };
+        const tools = toolService ? toolService.getToolsForAgent(curAgent, delegationOptions) : [];
+        const loopMessages: Array<{ role: string; content: any }> = claudeMessages;
 
-        // Execute each tool and build tool_result blocks
-        const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
-
-        for (const toolUse of toolUseBlocks as any[]) {
-          console.log(`[tool] Executing ${toolUse.name} with input: ${JSON.stringify(toolUse.input).slice(0, 200)}`);
-          writeSSE(res, "tool_start", { tool: toolUse.name, input: toolUse.input });
-
-          const toolStart = Date.now();
-          const toolContext = { conversationId: conversation.id, res, db, agents };
-          const result = await toolService.execute(toolUse.name, toolUse.input, toolContext);
-          const toolMs = Date.now() - toolStart;
-
-          console.log(`[tool] ${toolUse.name} completed (${toolMs}ms, ${result.length} chars)`);
-          writeSSE(res, "tool_done", { tool: toolUse.name, duration_ms: toolMs });
-
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: toolUse.id,
-            content: result,
-          });
-        }
-
-        // Push tool results as a user message
-        loopMessages.push({
-          role: "user",
-          content: toolResults,
-        });
-
-        // Break loop if a delegation tool was invoked (delegate_to or hand_back)
-        const hasDelegation = toolResults.some((r) => r.content.startsWith("[DELEGATION]"));
-        if (hasDelegation) {
-          break;
-        }
-
-        // Reset fullResponse for the next iteration — we only save the final text
         fullResponse = "";
-      }
+        let iterations = 0;
+        let delegateToOccurred = false;
 
-      // Save final assistant response
-      if (fullResponse) {
-        db.addMessage(conversation.id, "assistant", fullResponse, activeAgentId);
+        while (iterations < MAX_TOOL_ITERATIONS) {
+          iterations++;
+
+          const streamParams: Record<string, any> = {
+            model: curAgent.model,
+            max_tokens: curAgent.maxTokens,
+            temperature: curAgent.temperature,
+            system: systemPrompt,
+            messages: loopMessages,
+          };
+          if (tools.length > 0) {
+            streamParams.tools = tools;
+          }
+
+          const streamStart = Date.now();
+          let stream;
+          try {
+            console.log(`[stream] Starting Claude stream (agent: ${curAgentId}, model: ${curAgent.model}, iteration: ${iterations}, messages: ${loopMessages.length})`);
+            stream = getClient().messages.stream(streamParams as any);
+          } catch (err) {
+            console.error("[stream] Failed to create stream:", err);
+            writeSSE(res, "error", { message: "LLM service error" });
+            break;
+          }
+
+          // Stream text deltas to frontend in real-time
+          for await (const event of stream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              fullResponse += event.delta.text;
+              writeSSE(res, "delta", { text: event.delta.text, agentId: curAgentId });
+            }
+          }
+
+          // Get the final message for stop_reason and tool_use blocks
+          const finalMessage = await stream.finalMessage();
+          const streamMs = Date.now() - streamStart;
+
+          console.log(`[stream] Response complete (${fullResponse.length} chars, ${streamMs}ms, stop: ${finalMessage.stop_reason})`);
+
+          // Check if Claude wants to use tools
+          if (finalMessage.stop_reason !== "tool_use") {
+            break; // No tool calls — we're done
+          }
+
+          // Extract tool_use blocks
+          const toolUseBlocks = finalMessage.content.filter(
+            (block: any) => block.type === "tool_use"
+          );
+
+          if (toolUseBlocks.length === 0 || !toolService) {
+            break;
+          }
+
+          // Push assistant message with all content blocks (text + tool_use)
+          loopMessages.push({
+            role: "assistant",
+            content: finalMessage.content,
+          });
+
+          // Execute each tool and build tool_result blocks
+          const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
+
+          for (const toolUse of toolUseBlocks as any[]) {
+            console.log(`[tool] Executing ${toolUse.name} with input: ${JSON.stringify(toolUse.input).slice(0, 200)}`);
+            writeSSE(res, "tool_start", { tool: toolUse.name, input: toolUse.input });
+
+            const toolStart = Date.now();
+            const toolContext = { conversationId: conversation.id, res, db, agents };
+            const result = await toolService.execute(toolUse.name, toolUse.input, toolContext);
+            const toolMs = Date.now() - toolStart;
+
+            console.log(`[tool] ${toolUse.name} completed (${toolMs}ms, ${result.length} chars)`);
+            writeSSE(res, "tool_done", { tool: toolUse.name, duration_ms: toolMs });
+
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: toolUse.id,
+              content: result,
+            });
+          }
+
+          // Push tool results as a user message
+          loopMessages.push({
+            role: "user",
+            content: toolResults,
+          });
+
+          // Check if a delegation tool was invoked
+          const hasDelegation = toolResults.some((r) => r.content.startsWith("[DELEGATION]"));
+          if (hasDelegation) {
+            delegateToOccurred = toolUseBlocks.some((t: any) => t.name === "delegate_to");
+            break;
+          }
+
+          // Reset fullResponse for the next iteration — we only save the final text
+          fullResponse = "";
+        }
+
+        // Save this agent's response
+        if (fullResponse) {
+          db.addMessage(conversation.id, "assistant", fullResponse, curAgentId);
+        }
+
+        // If delegate_to occurred, continue the outer loop to run the specialist immediately
+        if (delegateToOccurred) {
+          console.log(`[delegation] delegate_to occurred — continuing with specialist agent`);
+          continueWithDelegation = true;
+        }
+        // hand_back or normal end — outer loop exits
       }
 
       // Generate title if this is the first exchange (no title yet)

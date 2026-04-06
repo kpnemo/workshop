@@ -20,11 +20,10 @@ export function createHandBackTool(): Tool {
       if (!context) return "Error: Tool context is required for hand_back.";
       if (!summary) return "Error: summary is required.";
 
-      const mainAgent = [...context.agents.values()].find((a) => a.delegates && a.delegates.length > 0);
-      const currentAgent = [...context.agents.values()].find((a) => !a.delegates || a.delegates.length === 0);
-
-      const mainAgentId = mainAgent?.id ?? "unknown";
-      const currentAgentId = currentAgent?.id ?? "unknown";
+      const conv = context.db.getConversation(context.conversationId)!;
+      const currentAgentId = conv.activeAgent!;
+      const mainAgentId = conv.agentId;
+      const mainAgent = context.agents.get(mainAgentId);
 
       context.db.setActiveAgent(context.conversationId, null);
       context.db.addDelegationMessage(context.conversationId, {

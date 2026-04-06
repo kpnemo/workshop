@@ -57,12 +57,13 @@ export class ToolService {
 
   async execute(toolName: string, input: unknown, context?: ToolContext): Promise<string> {
     if (toolName === "delegate_to" && context) {
-      const mainAgent = [...(context.agents?.values() ?? [])].find(
-        (a) => a.delegates && a.delegates.length > 0
-      );
-      if (mainAgent?.delegates) {
-        const tool = createDelegateToTool(mainAgent.delegates);
-        return tool.execute(input, context);
+      const conv = context.db.getConversation(context.conversationId);
+      if (conv) {
+        const mainAgent = context.agents.get(conv.agentId);
+        if (mainAgent?.delegates) {
+          const tool = createDelegateToTool(mainAgent.delegates);
+          return tool.execute(input, context);
+        }
       }
     }
 
