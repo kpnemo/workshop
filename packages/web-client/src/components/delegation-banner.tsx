@@ -41,5 +41,23 @@ export function DelegationBanner({ meta, agents }: DelegationBannerProps) {
     );
   }
 
+  if (meta.type === "assignment") {
+    const targetAgent = agents.find((a) => a.id === meta.to);
+    const emoji = targetAgent?.avatar?.emoji ?? "🤖";
+    const name = meta.agentName ?? targetAgent?.name ?? meta.to;
+
+    return (
+      <div className="flex items-center justify-center gap-2 px-4 py-2">
+        <div className="flex items-center gap-2 rounded-full bg-surface px-4 py-1.5 text-xs text-muted">
+          <span>✨</span>
+          <span>Connected you with</span>
+          <span>{emoji}</span>
+          <span className="font-medium text-foreground">{name}</span>
+          {meta.reason && <span className="text-muted">— {meta.reason}</span>}
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }
