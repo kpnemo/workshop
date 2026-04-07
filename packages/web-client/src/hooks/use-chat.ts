@@ -234,6 +234,28 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
               .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
           }));
         },
+        onAssignment: (data) => {
+          const banner: Message = {
+            id: uuidv4(),
+            role: "system",
+            content: "",
+            timestamp: new Date(),
+            delegationMeta: {
+              type: "assignment",
+              from: data.from,
+              to: data.to,
+              agentName: data.agentName,
+              reason: data.reason,
+            },
+          };
+          setState((s) => ({
+            ...s,
+            messages: [...s.messages.filter((m) => !(m.id === assistantMessageId && m.content === "")), banner],
+            conversations: s.conversations.map((c) =>
+              c.id === s.conversationId ? { ...c, agentId: data.to } : c
+            ),
+          }));
+        },
         onDelegationStart: (data) => {
           const specialistMessageId = uuidv4();
           activeAssistantIdRef.current = specialistMessageId;

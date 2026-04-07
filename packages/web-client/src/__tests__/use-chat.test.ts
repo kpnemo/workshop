@@ -114,6 +114,47 @@ describe("useChat", () => {
     });
   });
 
+  it("handles assignment event as system banner and updates conversation agentId", async () => {
+    vi.mocked(api.sendMessage).mockImplementation(async (_id, _msg, cb) => {
+      cb.onAssignment({
+        from: "router",
+        to: "weather-agent",
+        agentName: "Weather",
+        reason: "you asked about weather",
+      });
+      cb.onDone();
+    });
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
+    await waitFor(() => {
+      expect(result.current.state.conversationId).toBe("conv-123");
+    });
+    await act(async () => {
+      result.current.sendMessage("What is the weather?");
+    });
+    await waitFor(() => {
+      expect(result.current.state.isStreaming).toBe(false);
+    });
+
+    // Banner system message should be present
+    const bannerMsg = result.current.state.messages.find(
+      (m) => m.role === "system" && m.delegationMeta?.type === "assignment"
+    );
+    expect(bannerMsg).toBeDefined();
+    expect(bannerMsg?.delegationMeta?.to).toBe("weather-agent");
+
+    // Empty assistant placeholder should be removed
+    const emptyAssistant = result.current.state.messages.find(
+      (m) => m.role === "assistant" && m.content === ""
+    );
+    expect(emptyAssistant).toBeUndefined();
+
+    // Conversation agentId should be updated
+    const conv = result.current.state.conversations.find(
+      (c) => c.id === "conv-123"
+    );
+    expect(conv?.agentId).toBe("weather-agent");
+  });
+
   it("clears messages on startNewChat", async () => {
     vi.mocked(api.sendMessage).mockImplementation(async (_id, _msg, cb) => {
       cb.onDelta("Reply");
