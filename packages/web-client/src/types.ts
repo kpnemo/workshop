@@ -1,9 +1,11 @@
 export interface DelegationMeta {
-  type: "delegation_start" | "delegation_end";
+  type: "delegation_start" | "delegation_end" | "assignment";
   from: string;
   to: string;
   context?: string;
   summary?: string;
+  agentName?: string;
+  reason?: string;
 }
 
 export interface Message {
@@ -61,6 +63,7 @@ export interface SendMessageCallbacks {
   onDone: () => void;
   onDelegationStart?: (data: { from: string; to: string; agentName: string; emoji: string; color: string; context: string }) => void;
   onDelegationEnd?: (data: { from: string; to: string; agentName: string; summary: string }) => void;
+  onAssignment?: (data: { from: string; to: string; agentName: string; reason: string }) => void;
 }
 
 export interface AgentAvatar {
