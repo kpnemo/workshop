@@ -7,26 +7,38 @@ description: Set up the workshop project from scratch so participants can start 
 
 This skill walks a workshop participant through the full project setup — from install to running services — so they can start building immediately without fighting tooling.
 
-The project is a pnpm monorepo with two services managed by pm2:
+The project is a pnpm monorepo with two services run together via `concurrently`:
 - **agent-service** (Express backend on port 3000)
 - **web-client** (React + Vite frontend on port 5173)
 
+`pnpm start` launches both in the foreground of the current terminal, with interleaved live logs prefixed `be` (blue) and `fe` (green). Ctrl-C kills both. There is no background process manager — what you see in the terminal is all of it.
+
+## CRITICAL: Anchor every command to the project root
+
+**Always run commands from the project root**, not wherever the shell happens to be. The Bash tool's working directory is persistent across commands in a session, and earlier work in subdirectories (e.g. running tests inside `packages/agent-service`) leaves cwd drifted. The skill previously broke because of exactly this — `ls ecosystem*` returned "no matches" not because the file was missing, but because cwd had drifted into a subdirectory where it didn't exist.
+
+**Do this at the very start, before any other command:**
+```bash
+cd "$(git rev-parse --show-toplevel)"
+pwd
+```
+Confirm the printed path is the project root (something like `.../new-workshop`). If you ever run a command that might leave cwd elsewhere (e.g. `cd packages/...`), prefix the *next* command with the same `cd` to root, or chain it with `&&` rather than relying on subsequent commands inheriting the right cwd.
+
 ## Step 0: Diagnose current state
 
-Before running through setup steps, quickly check what's already in place. This avoids wasting time redoing work the user has already completed.
+After anchoring cwd to the project root, quickly check what's already in place. This avoids redoing work the user has already completed.
 
-Run these checks in parallel:
-- Does `node_modules/` exist in the project root? (indicates dependencies were installed)
-- Does `.env` exist? If so, does it have a real API key (not the `your-key-here` placeholder)?
-- Is anything already running on ports 3000 or 5173? (`lsof -ti:3000` / `lsof -ti:5173`)
-- Was `pnpm` used, or did the user use `npm`? (check for `node_modules/.pnpm` — if it's missing but `node_modules` exists, the user likely used npm)
-- What Node.js version is installed? (`node --version`) — if below v18, warn early
-- Are pm2 processes already running? (`pnpm pm2 list 2>/dev/null`) — if so, stop them first with `pnpm stop` before restarting to avoid port conflicts
-- Is Playwright Chromium installed? Only check this if `node_modules` exists — run `cd packages/agent-service && pnpm exec playwright --version 2>/dev/null`. If node_modules is missing, defer this check to Step 1 (after `pnpm install`)
+Run these checks (in parallel where possible):
+- Does `node_modules/` exist in the project root?
+- Does `node_modules/.pnpm/` exist? (If `node_modules` exists but `.pnpm` doesn't, the user ran `npm install` instead of `pnpm install` — needs reinstall.)
+- Does `.env` exist? If so, does it have `ANTHROPIC_API_KEY` and `JWT_SECRET` set to real values (not the `your-key-here` / `your-jwt-secret-here` placeholders)?
+- Is anything already running on ports 3000 or 5173? (`lsof -ti:3000`, `lsof -ti:5173`)
+- What Node.js version is installed? (`node --version`) — the project requires Node 20 or higher per `engines.node`.
+- Is Playwright Chromium installed? Only check this if `node_modules` exists: `pnpm --filter @new-workshop/agent-service exec playwright --version 2>/dev/null`. If `node_modules` is missing, defer this check until after `pnpm install`.
 
-Based on what you find, skip steps that are already complete and tell the user what you're skipping and why.
+Based on what you find, skip steps that are already complete and tell the user what you're skipping and why. If ports are occupied by previous services, kill them now: `lsof -ti:3000 -ti:5173 2>/dev/null | xargs kill 2>/dev/null`.
 
-**Important:** This project uses **pnpm**, not npm. If the user mentions they ran `npm install`, explain that the project uses pnpm workspaces so `pnpm install` is needed instead. Don't make them feel bad about it — just note that pnpm handles the monorepo dependencies correctly and re-run with pnpm.
+**pnpm vs npm:** This project uses pnpm workspaces. If the user mentions they ran `npm install`, gently note that they need `pnpm install` instead — npm doesn't understand the workspace layout. Don't make them feel bad; just rerun with pnpm.
 
 ## Step 1: Install dependencies
 
@@ -36,132 +48,133 @@ Run from the project root:
 pnpm install
 ```
 
-If `pnpm` is not installed, offer to install it for the user. If they agree, run:
-```bash
-npm install -g pnpm
-```
-
-Verify the install succeeded (exit code 0, no unresolved peer dependency errors). This also installs pm2, which is used to manage the services.
+If `pnpm` is not installed, offer to install it: `npm install -g pnpm`. Verify the install succeeded (exit code 0, no unresolved peer dependency errors).
 
 Then install Playwright's Chromium browser (needed for the `browse_url` agent tool):
 
 ```bash
-cd packages/agent-service && pnpm exec playwright install chromium
+pnpm --filter @new-workshop/agent-service exec playwright install chromium
 ```
 
-This downloads the headless Chromium binary. It's a ~150MB download and only needs to happen once. If it fails, check that the user has write access to the Playwright cache directory.
+This downloads the headless Chromium binary (~150MB) and only needs to happen once. If it fails, check that the user has write access to the Playwright cache directory (`~/Library/Caches/ms-playwright` on macOS).
 
-Skip the `pnpm install` part of this step if Step 0 confirmed dependencies are already correctly installed via pnpm. Still check if Playwright browsers are installed — run `cd packages/agent-service && pnpm exec playwright --version` to verify. If it errors, run the install command above.
+Skip the `pnpm install` if Step 0 confirmed deps are already present and pnpm-managed. Still verify Playwright with `pnpm --filter @new-workshop/agent-service exec playwright --version`; if it errors, run the install command above.
 
 ## Step 2: Configure environment
 
-Check if `.env` already exists in the project root. If it does, skip the copy and just verify it has `ANTHROPIC_API_KEY` set to something other than the placeholder and `JWT_SECRET` set to something other than the placeholder.
+Check whether `.env` exists in the project root.
 
-If `.env` does not exist:
+**If it exists:** verify both `ANTHROPIC_API_KEY` and `JWT_SECRET` are set to non-placeholder values, then skip the rest of this step.
+
+**If it doesn't exist:**
 
 ```bash
 cp .env.example .env
 ```
 
-**Generate a JWT secret automatically** — don't ask the user for this. Generate a random secret and write it in:
+Generate a JWT secret automatically — don't ask the user for this:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Use the Edit tool to replace `your-jwt-secret-here` in `.env` with the generated value.
+Use the Edit tool to replace `your-jwt-secret-here` in `.env` with the generated hex value.
 
-Then ask the user for their Anthropic API key. Use the AskUserQuestion tool with a message like:
+Then ask the user for their Anthropic API key using the AskUserQuestion tool with a message like:
 
 > "I need your Anthropic API key to configure the project. You can get one from https://console.anthropic.com/settings/keys if you don't have one yet. Please paste your key:"
 
-Once the user provides the key, write it into `.env` by replacing the placeholder value. The final `.env` should look like:
+Once the user provides the key, write it into `.env` by replacing the `your-key-here` placeholder. The final `.env` should look like:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 JWT_SECRET=<auto-generated-hex>
 ```
 
-Do NOT echo the API key to the terminal or include it in any visible output. Use the Edit tool to update the `.env` file directly.
+**Do NOT echo the API key to the terminal** or include it in any visible output. Use the Edit tool directly.
 
-## Step 3: Start all services
+## Step 3: Start the services
 
-If Step 0 found existing pm2 processes or something occupying ports 3000/5173, clean up first:
-
-```bash
-pnpm stop 2>/dev/null
-lsof -ti:3000 | xargs kill 2>/dev/null
-lsof -ti:5173 | xargs kill 2>/dev/null
-```
-
-Then start both services at once using pm2:
+If Step 0 found anything occupying ports 3000 or 5173, clear them first:
 
 ```bash
-pnpm pm2 start ecosystem.config.cjs
+lsof -ti:3000 -ti:5173 2>/dev/null | xargs kill 2>/dev/null
+sleep 1
 ```
 
-This launches both the backend and frontend as managed background processes via the `ecosystem.config.cjs` file. pm2 handles process management, automatic restarts, and log aggregation.
-
-Wait a few seconds for both services to come up, then verify:
+Then start both services. `pnpm start` runs them via `concurrently` in the foreground; in an interactive terminal the user would see live logs from both. Inside this skill (running under Claude Code), launch it as a background process so we can verify the ports come up:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/conversations
+pnpm start
 ```
-Expected: 401 (auth required — means the backend is alive).
+
+When invoking via the Bash tool, pass `run_in_background: true` so the process survives across tool calls.
+
+Then poll the ports with a real readiness loop — pm2's old "claim it's online and curl once" approach was flaky; both services need a real port-readiness check:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
+for i in $(seq 1 30); do
+  BE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/conversations 2>/dev/null)
+  FE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5173 2>/dev/null)
+  if [ "$BE" = "401" ] && [ "$FE" = "200" ]; then
+    echo "ready (backend=$BE, frontend=$FE)"; break
+  fi
+  sleep 1
+done
 ```
-Expected: 200.
 
-If either check fails, read the pm2 logs for errors:
-```bash
-pnpm pm2 logs --lines 30 --nostream
-```
-
-Help the user fix any issues (missing key, port conflicts, etc.) before proceeding.
+- Backend `401` means auth-required, which means the route handler is alive — that's success.
+- Frontend `200` is plain success.
+- If after 30s either is still `000`, something failed. Read the output of the background `pnpm start` process (the Bash tool exposes background output via Read on the output file path). The most common causes are missing/invalid `ANTHROPIC_API_KEY`, port conflict from another process you didn't kill, or Playwright Chromium missing.
 
 ## Step 4: Open the app in the browser
 
-Once both services are confirmed running, open the frontend in the user's default browser. This is the payoff moment — the participant should see the working app without any manual steps.
+Once both services are confirmed ready, open the frontend:
 
-On macOS:
+**macOS:**
 ```bash
 open http://localhost:5173
 ```
 
-On Linux:
+**Linux:**
 ```bash
 xdg-open http://localhost:5173
 ```
 
-Do a final health check before opening — curl the frontend one more time. If it returns 200, open the browser. If not, wait 2-3 seconds and retry once. Only fall back to telling the user to open it manually if the service genuinely isn't responding.
+These commands return success even if no browser handler is configured, so consider it best-effort. If the user reports the browser didn't open, give them the URL to paste manually.
 
 ## Step 5: Orient the user
 
-After setup succeeds, present the user with everything they need to know. Check if the `agents/` directory has any markdown files, count them, and check which ones have a `tools:` field in their frontmatter.
+Check the `agents/` directory and count the markdown files. Identify which ones declare a `tools:` field in their frontmatter (those have access to tools like `browse_url`).
 
-Tell the user:
+Then tell the user:
 
 > **You're all set!** The app should be open in your browser now.
 >
 > - Backend (API): http://localhost:3000
 > - Frontend (UI): http://localhost:5173
 >
-> You have X agent persona(s) defined in `agents/`. Try chatting with one in the UI!
+> You have **N agent persona(s)** defined in `agents/` (M of them have tools enabled). Try chatting with one in the UI!
 >
-> Some agents have **tools** enabled (like `browse_url` for web browsing). You can give an agent tools by adding a `tools:` field to its markdown frontmatter. See the agent edit form in the UI for available tools and examples.
+> **How services run:**
 >
-> **Useful commands:**
+> The two services run together via `pnpm start` in your terminal. Both backend and frontend logs are streamed live, prefixed with `[be]` (blue) and `[fe]` (green). To stop both services, press **Ctrl-C** in that terminal. To restart, run `pnpm start` again.
 >
-> | Command | What it does |
-> |---------|-------------|
-> | `pnpm start` | Start services + show live logs |
-> | `pnpm stop` | Stop all services |
-> | `pnpm restart` | Restart all services |
-> | `pnpm logs` | View live logs (Ctrl+C to exit, services keep running) |
-> | `pnpm status` | Show service status table |
+> If you want to keep logs visible while you code, open a second terminal tab — one for `pnpm start` (logs there), one for git/editor work.
+>
+> **Adding tools to an agent:** Add a `tools:` field in the agent's markdown frontmatter, e.g.
+> ```yaml
+> tools:
+>   - browse_url
+> ```
+> See the agent edit form in the UI for available tools.
 
-This commands table is important — it's how participants will manage services throughout the workshop. The key thing to convey is that `pnpm start` launches services and immediately shows logs, Ctrl+C exits the log view but the services stay running in the background, and `pnpm logs` re-attaches to the log stream anytime.
+If any step failed and you couldn't resolve it, clearly tell the user what went wrong, what you tried, and what they need to fix manually.
 
-If any step failed and couldn't be resolved, clearly tell the user what went wrong and what they need to fix manually.
+## Common gotchas
+
+- **Working directory drift.** The single most common cause of mysterious failures running this skill. Always anchor with `cd "$(git rev-parse --show-toplevel)"` before any command. See the "CRITICAL" section above.
+- **Don't reintroduce pm2.** A previous version of this project used pm2 + `ecosystem.config.cjs`. pm2 6.x has known `spawn ENOENT` failures on Node 24+ (it can't reliably spawn `npx`, `pnpm`, or even `/bin/sh` as scripts). We replaced it with `concurrently`, which is simpler, has no spawn issues, and gives better live logs for a workshop. If you find yourself trying to "fix pm2", stop — that's a rabbit hole we already climbed out of.
+- **`open` returns 0 silently.** macOS's `open` command returns success even when no default browser is set. If the user says they didn't see anything, just give them the URL to paste manually.
+- **`xargs` with no input.** `lsof -ti:3000 | xargs kill` is harmless on macOS when nothing's listening (xargs with no input is a no-op), but on stricter shells use `xargs -r` or guard with `[ -n "$PIDS" ]`.
+- **Slow first start.** The first `pnpm start` after a fresh install can take 10–15 seconds because tsx and vite are warming up. The 30-second readiness loop handles this; don't reduce the timeout.

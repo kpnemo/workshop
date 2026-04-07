@@ -2,11 +2,8 @@
   "name": "new-workshop",
   "private": true,
   "scripts": {
-    "start": "pnpm pm2 start ecosystem.config.cjs && pnpm logs",
-    "stop": "pnpm pm2 stop ecosystem.config.cjs",
-    "restart": "pnpm pm2 restart ecosystem.config.cjs",
-    "logs": "pnpm pm2 logs --lines 50",
-    "status": "pnpm pm2 list"
+    "start": "concurrently --names \"be,fe\" --prefix-colors \"blue,green\" --kill-others-on-fail \"pnpm --filter @new-workshop/agent-service dev\" \"pnpm --filter @new-workshop/web-client dev\"",
+    "stop": "echo 'Press Ctrl-C in the terminal running `pnpm start` to stop both services.'"
   },
   "engines": {
     "node": ">=20"
@@ -17,6 +14,6 @@
     ]
   },
   "devDependencies": {
-    "pm2": "^6.0.14"
+    "concurrently": "^9.1.0"
   }
 }
