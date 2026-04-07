@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
@@ -48,7 +49,10 @@ app.use((req, res, next) => {
 const agents = loadAgents(AGENTS_DIR);
 console.log(`[startup] Loaded ${agents.size} agent(s): ${[...agents.keys()].join(", ")}`);
 
-// Database
+// Database — ensure parent directory exists, since `packages/data/` is not
+// tracked in git and won't be present on a fresh clone (better-sqlite3 will
+// crash trying to open a file in a non-existent directory).
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 console.log(`[startup] Database opened at ${DB_PATH}`);
 
