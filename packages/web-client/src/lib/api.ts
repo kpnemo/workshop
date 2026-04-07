@@ -175,6 +175,9 @@ export async function sendMessage(
           case "delegation_end":
             callbacks.onDelegationEnd?.(data);
             break;
+          case "assignment":
+            callbacks.onAssignment?.(data);
+            break;
           case "done":
             callbacks.onDone();
             break;
