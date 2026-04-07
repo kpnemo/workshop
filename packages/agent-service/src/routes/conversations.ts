@@ -337,6 +337,13 @@ export function createConversationRouter(
             content: toolResults,
           });
 
+          // Check if an assignment tool was invoked (terminal — router's turn is done)
+          const hasAssignment = toolResults.some((r) => r.content.startsWith("[ASSIGNMENT]"));
+          if (hasAssignment) {
+            // assign_agent is terminal — router's turn is done, conversation is now reassigned
+            break;
+          }
+
           // Check if a delegation tool was invoked
           const hasDelegation = toolResults.some((r) => r.content.startsWith("[DELEGATION]"));
           if (hasDelegation) {
@@ -367,7 +374,9 @@ export function createConversationRouter(
       }
 
       // Generate title if this is the first exchange (no title yet)
-      if (!conversation.title) {
+      // Re-read conversation to get current agentId (assignment may have changed it mid-turn)
+      const finalConv = db.getConversation(conversation.id)!;
+      if (!conversation.title && finalConv.agentId !== "router") {
         try {
           console.log(`[title] Generating title for conversation ${conversation.id}`);
           const titleResponse = await getClient().messages.create({
