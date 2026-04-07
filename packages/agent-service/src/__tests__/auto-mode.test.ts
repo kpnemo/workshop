@@ -170,9 +170,19 @@ function makePlainTextStream(text: string) {
 }
 
 describe("auto-mode: assign_agent as terminal tool", () => {
-  it("emits assignment SSE event and persists new agentId", async () => {
-    // Stub: router returns assign_agent tool_use
-    mockMessagesStream = vi.fn().mockReturnValue(makeAssignAgentStream());
+  it("emits assignment SSE event and persists new agentId, then specialist responds in same turn", async () => {
+    // Capture stream call params so we can verify models used
+    const streamCallParams: any[] = [];
+
+    // First call: router calls assign_agent
+    // Second call: weather-agent responds immediately in the same HTTP request
+    mockMessagesStream = vi.fn().mockImplementation((params: any) => {
+      streamCallParams.push(params);
+      if (streamCallParams.length === 1) {
+        return makeAssignAgentStream();
+      }
+      return makePlainTextStream("The weather in Paris is sunny today!");
+    });
 
     const app = buildApp();
     db.createConversation("conv-auto", "router", "user-a");
@@ -191,6 +201,10 @@ describe("auto-mode: assign_agent as terminal tool", () => {
     expect(res.body).toContain('"agentName":"Weather Agent"');
     expect(res.body).toContain('"reason":"user asked about weather"');
 
+    // Assigned agent must have streamed a response in the SAME request (same-turn fix)
+    expect(res.body).toContain("event: delta");
+    expect(res.body).toContain("The weather in Paris is sunny today!");
+
     // Should end cleanly
     expect(res.body).toContain("event: done");
     expect(res.body).not.toContain("event: error");
@@ -198,15 +212,23 @@ describe("auto-mode: assign_agent as terminal tool", () => {
     // DB should reflect new agentId
     const conv = db.getConversation("conv-auto")!;
     expect(conv.agentId).toBe("weather-agent");
+
+    // Anthropic stream must have been called twice:
+    // 1st with router's model, 2nd with weather-agent's model
+    expect(streamCallParams.length).toBe(2);
+    expect(streamCallParams[0].model).toBe(routerAgent.model);
+    expect(streamCallParams[1].model).toBe(weatherAgent.model);
   });
 
   it("does not generate a title while conversation is still on router (assignment just happened)", async () => {
-    // The assign_agent tool sets agentId to weather-agent, so after the request
-    // the conversation is on weather-agent — title generation is allowed.
-    // But if somehow it stays on router, title should be skipped.
-    // This test verifies the no-error path: if assignment succeeds,
-    // title generation can run (agentId !== "router" after assignment).
-    mockMessagesStream = vi.fn().mockReturnValue(makeAssignAgentStream());
+    // After the fix, assignment triggers an immediate second turn for the weather-agent.
+    // Title generation fires after the outer loop, using the specialist's fullResponse.
+    let callCount = 0;
+    mockMessagesStream = vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return makeAssignAgentStream();
+      return makePlainTextStream("It looks nice today!");
+    });
 
     // mockMessagesCreate is already set up in beforeEach for title generation
     const app = buildApp();
@@ -229,12 +251,17 @@ describe("auto-mode: assign_agent as terminal tool", () => {
   });
 
   it("bonus: follow-up message after assignment uses weather-agent model", async () => {
-    // Set up the assignment turn first
-    mockMessagesStream = vi.fn().mockReturnValue(makeAssignAgentStream());
+    // Set up the assignment turn: router assigns, then weather-agent responds in same turn
+    let firstRequestCallCount = 0;
+    mockMessagesStream = vi.fn().mockImplementation(() => {
+      firstRequestCallCount++;
+      if (firstRequestCallCount === 1) return makeAssignAgentStream();
+      return makePlainTextStream("Paris weather: sunny!");
+    });
     const app = buildApp();
     db.createConversation("conv-followup", "router", "user-a");
 
-    // First message — triggers assignment
+    // First message — triggers assignment + immediate specialist turn
     await makeRequest(
       app, "POST", "/conversations/conv-followup/messages",
       { message: "What's the weather in Paris?" }, userAToken

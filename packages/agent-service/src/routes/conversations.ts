@@ -98,7 +98,7 @@ export function createConversationRouter(
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
-    const conversation = db.getConversation(req.params.id)!;
+    let conversation = db.getConversation(req.params.id)!;
 
     const { message } = req.body;
     if (!message || (typeof message === "string" && message.trim() === "")) {
@@ -164,6 +164,7 @@ export function createConversationRouter(
 
         // Reload conversation to get latest state (including active_agent changes from delegation)
         const currentConv = db.getConversation(conversation.id)!;
+        conversation = currentConv; // keep outer ref in sync (needed after assign_agent changes agentId)
         const curAgentId = currentConv.activeAgent ?? currentConv.agentId;
         const curAgent = agents.get(curAgentId);
 
@@ -340,7 +341,10 @@ export function createConversationRouter(
           // Check if an assignment tool was invoked (terminal — router's turn is done)
           const hasAssignment = toolResults.some((r) => r.content.startsWith("[ASSIGNMENT]"));
           if (hasAssignment) {
-            // assign_agent is terminal — router's turn is done, conversation is now reassigned
+            // assign_agent reassigns the conversation. Continue the outer loop so the
+            // newly-assigned agent takes its turn immediately, responding to the user's
+            // original message instead of forcing them to send another one.
+            continueWithDelegation = true;
             break;
           }
 
