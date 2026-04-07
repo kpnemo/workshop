@@ -3,6 +3,7 @@ import type { Tool, ToolContext } from "./tools/types.js";
 import type { AgentConfig } from "../types.js";
 import { BrowserManager } from "./tools/browser-manager.js";
 import { createBrowseUrlTool } from "./tools/browse-url.js";
+import { createAssignAgentTool } from "./tools/assign-agent.js";
 import { createDelegateToTool } from "./tools/delegate-to.js";
 import { createHandBackTool } from "./tools/hand-back.js";
 
@@ -32,6 +33,7 @@ export class ToolService {
 
   registerDefaults(): void {
     this.register(createBrowseUrlTool(this.browserManager));
+    this.register(createAssignAgentTool());
   }
 
   getToolsForAgent(
@@ -42,6 +44,7 @@ export class ToolService {
 
     if (agent.tools && agent.tools.length > 0) {
       for (const name of agent.tools) {
+        if (name === "assign_agent" && agent.id !== "router") continue;
         const tool = this.tools.get(name);
         if (tool) {
           definitions.push(tool.definition);

@@ -163,3 +163,32 @@ describe("Delegation tool injection", () => {
     expect(names).toEqual(["my_tool"]);
   });
 });
+
+describe("assign_agent tool gating", () => {
+  let service: ToolService;
+
+  beforeEach(() => {
+    service = new ToolService();
+  });
+
+  it("exposes assign_agent only to the router agent", () => {
+    service.registerDefaults();
+
+    const router: AgentConfig = {
+      id: "router", name: "Auto", model: "m", maxTokens: 1, temperature: 1,
+      systemPrompt: "", avatar: { emoji: "✨", color: "#000" },
+      tools: ["assign_agent"],
+    };
+    const other: AgentConfig = {
+      id: "weather-agent", name: "Weather", model: "m", maxTokens: 1, temperature: 1,
+      systemPrompt: "", avatar: { emoji: "🌤", color: "#000" },
+      tools: ["assign_agent"], // even if listed, must be filtered
+    };
+
+    const routerTools = service.getToolsForAgent(router).map((t) => t.name);
+    const otherTools = service.getToolsForAgent(other).map((t) => t.name);
+
+    expect(routerTools).toContain("assign_agent");
+    expect(otherTools).not.toContain("assign_agent");
+  });
+});
