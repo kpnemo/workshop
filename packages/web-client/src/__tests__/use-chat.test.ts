@@ -116,7 +116,7 @@ describe("useChat", () => {
 
   it("handles assignment event as system banner and updates conversation agentId", async () => {
     vi.mocked(api.sendMessage).mockImplementation(async (_id, _msg, cb) => {
-      cb.onAssignment({
+      cb.onAssignment?.({
         from: "router",
         to: "weather-agent",
         agentName: "Weather",

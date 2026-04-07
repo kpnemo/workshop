@@ -54,7 +54,13 @@ export function AgentSelector({ agents, currentAgentId, locked, onSelect }: Agen
 
       {open && (
         <div className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
-          {agents.map((agent) => (
+          {(() => {
+            const sortedAgents = [...agents].sort((a, b) => {
+              if (a.id === "router") return -1;
+              if (b.id === "router") return 1;
+              return 0;
+            });
+            return sortedAgents.map((agent) => (
             <button
               key={agent.id}
               onClick={() => { onSelect(agent.id); setOpen(false); }}
@@ -69,7 +75,8 @@ export function AgentSelector({ agents, currentAgentId, locked, onSelect }: Agen
               </div>
               {agent.id === currentAgentId && <span className="text-xs text-primary">✓</span>}
             </button>
-          ))}
+            ));
+          })()}
           {!locked && (
             <div className="border-t border-border px-3 py-2 text-center text-[11px] text-muted italic">
               Agent can be changed until you send the first message

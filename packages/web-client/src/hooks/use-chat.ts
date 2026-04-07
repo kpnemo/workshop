@@ -34,6 +34,16 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
   const stableAgentIds = useMemo(() => agentIds, [agentIds.join(",")]);
 
   const resolveAgentId = useCallback((): string | null => {
+    // Default to router if it exists in the agents list
+    if (stableAgentIds.includes("router")) {
+      const lastId = getLastAgentId();
+      // Honor an explicit prior choice only if it was a non-router agent
+      if (lastId && lastId !== "router" && stableAgentIds.includes(lastId)) {
+        return lastId;
+      }
+      return "router";
+    }
+    // Fallback to existing logic when router is not available
     const lastId = getLastAgentId();
     if (lastId && stableAgentIds.length > 0 && stableAgentIds.includes(lastId)) {
       return lastId;
