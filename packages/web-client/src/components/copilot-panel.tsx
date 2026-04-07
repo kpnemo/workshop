@@ -25,7 +25,7 @@ export function CopilotPanel({
     return (
       <button
         onClick={onToggle}
-        className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 transition-transform hover:scale-105"
+        className="fixed bottom-24 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 transition-transform hover:scale-105"
         aria-label="Open Agent Copilot"
       >
         <Bot size={22} />
