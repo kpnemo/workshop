@@ -161,6 +161,16 @@ describe("Database", () => {
     });
   });
 
+  describe("setAgentId", () => {
+    it("setAgentId updates the agent_id of a conversation", () => {
+      db.createUser("u1", "a@b.com", "x");
+      db.createConversation("c1", "router", "u1");
+      db.setAgentId("c1", "weather-agent");
+      const conv = db.getConversation("c1")!;
+      expect(conv.agentId).toBe("weather-agent");
+    });
+  });
+
   describe("Delegation support", () => {
     it("stores and retrieves active_agent on conversation", () => {
       db.createUser("user-1", "d1@example.com", "pw");

@@ -122,6 +122,12 @@ export class Database {
     this.db.prepare("UPDATE conversations SET active_agent = ? WHERE id = ?").run(agentId, conversationId);
   }
 
+  setAgentId(conversationId: string, agentId: string): void {
+    this.db
+      .prepare("UPDATE conversations SET agent_id = ?, updated_at = ? WHERE id = ?")
+      .run(agentId, new Date().toISOString(), conversationId);
+  }
+
   deleteConversation(id: string): boolean {
     const result = this.db
       .prepare("DELETE FROM conversations WHERE id = ?")
