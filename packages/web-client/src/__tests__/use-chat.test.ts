@@ -114,7 +114,7 @@ describe("useChat", () => {
     });
   });
 
-  it("handles assignment event as system banner and updates conversation agentId", async () => {
+  it("handles assignment event as system banner and streams assigned agent reply in same turn", async () => {
     vi.mocked(api.sendMessage).mockImplementation(async (_id, _msg, cb) => {
       cb.onAssignment?.({
         from: "router",
@@ -122,6 +122,9 @@ describe("useChat", () => {
         agentName: "Weather",
         reason: "you asked about weather",
       });
+      // Simulate the assigned agent streaming its reply in the same request
+      cb.onDelta("It's sunny", "weather-agent");
+      cb.onDelta(" in Tel Aviv.", "weather-agent");
       cb.onDone();
     });
     const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
@@ -142,11 +145,12 @@ describe("useChat", () => {
     expect(bannerMsg).toBeDefined();
     expect(bannerMsg?.delegationMeta?.to).toBe("weather-agent");
 
-    // Empty assistant placeholder should be removed
-    const emptyAssistant = result.current.state.messages.find(
-      (m) => m.role === "assistant" && m.content === ""
-    );
-    expect(emptyAssistant).toBeUndefined();
+    // The original (empty) router placeholder should have been dropped, but a
+    // new assistant message for the assigned agent should hold the streamed text
+    const assistantMessages = result.current.state.messages.filter((m) => m.role === "assistant");
+    expect(assistantMessages).toHaveLength(1);
+    expect(assistantMessages[0].content).toBe("It's sunny in Tel Aviv.");
+    expect(assistantMessages[0].agentId).toBe("weather-agent");
 
     // Conversation agentId should be updated
     const conv = result.current.state.conversations.find(

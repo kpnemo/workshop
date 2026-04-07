@@ -258,9 +258,26 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
               reason: data.reason,
             },
           };
+          // Mint a new placeholder for the assigned agent's reply and point the
+          // active-assistant ref at it, otherwise subsequent onDelta events have
+          // nothing to land in (the previous placeholder was the router's, and
+          // we drop it below if it never streamed any text).
+          const assignedAssistantId = uuidv4();
+          activeAssistantIdRef.current = assignedAssistantId;
+          const assignedAssistant: Message = {
+            id: assignedAssistantId,
+            role: "assistant",
+            content: "",
+            timestamp: new Date(),
+            agentId: data.to,
+          };
           setState((s) => ({
             ...s,
-            messages: [...s.messages.filter((m) => !(m.id === assistantMessageId && m.content === "")), banner],
+            messages: [
+              ...s.messages.filter((m) => !(m.id === assistantMessageId && m.content === "")),
+              banner,
+              assignedAssistant,
+            ],
             conversations: s.conversations.map((c) =>
               c.id === s.conversationId ? { ...c, agentId: data.to } : c
             ),
