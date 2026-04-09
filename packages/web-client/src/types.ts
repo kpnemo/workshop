@@ -8,6 +8,14 @@ export interface DelegationMeta {
   reason?: string;
 }
 
+export interface DebugEvent {
+  id: string;
+  timestamp: Date;
+  type: 'agent' | 'thinking' | 'tool' | 'stream' | 'delegation' | 'assignment';
+  data: Record<string, unknown>;
+  turn?: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";
@@ -64,6 +72,10 @@ export interface SendMessageCallbacks {
   onDelegationStart?: (data: { from: string; to: string; agentName: string; emoji: string; color: string; context: string }) => void;
   onDelegationEnd?: (data: { from: string; to: string; agentName: string; summary: string }) => void;
   onAssignment?: (data: { from: string; to: string; agentName: string; reason: string }) => void;
+  onDebugAgent?: (data: { agentId: string; model: string; temperature: number; maxTokens: number; systemPromptPreview: string; isDelegated: boolean }) => void;
+  onDebugThinking?: (data: { text: string }) => void;
+  onDebugTool?: (data: { tool: string; input: Record<string, unknown>; result: string; durationMs: number; resultSize: number }) => void;
+  onDebugStream?: (data: { tokens: number; stopReason: string; totalMs: number; iteration: number }) => void;
 }
 
 export interface AgentAvatar {
