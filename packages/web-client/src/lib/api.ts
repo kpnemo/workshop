@@ -120,16 +120,15 @@ export async function deleteConversation(conversationId: string): Promise<void> 
 export async function sendMessage(
   conversationId: string,
   message: string,
-  callbacks: SendMessageCallbacks
+  callbacks: SendMessageCallbacks,
+  options?: { debug?: boolean }
 ): Promise<void> {
-  const res = await fetch(
-    `${BASE_URL}/api/conversations/${conversationId}/messages`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ message }),
-    }
-  );
+  const url = `${BASE_URL}/api/conversations/${conversationId}/messages${options?.debug ? "?debug=true" : ""}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ message }),
+  });
 
   if (!res.ok) {
     const body = await res.json();
@@ -177,6 +176,18 @@ export async function sendMessage(
             break;
           case "assignment":
             callbacks.onAssignment?.(data);
+            break;
+          case "debug_agent":
+            callbacks.onDebugAgent?.(data);
+            break;
+          case "debug_thinking":
+            callbacks.onDebugThinking?.(data);
+            break;
+          case "debug_tool":
+            callbacks.onDebugTool?.(data);
+            break;
+          case "debug_stream":
+            callbacks.onDebugStream?.(data);
             break;
           case "done":
             callbacks.onDone();

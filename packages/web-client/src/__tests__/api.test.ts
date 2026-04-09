@@ -251,3 +251,81 @@ describe("login", () => {
     );
   });
 });
+
+describe("sendMessage with debug", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("appends ?debug=true to URL when debug option is set", async () => {
+    const sseBody = 'event: done\ndata: {"conversationId":"conv-123"}\n\n';
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(sseBody));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue({ ok: true, status: 200, body: stream });
+
+    await sendMessage("conv-123", "Hi", { onDelta: vi.fn(), onBlocked: vi.fn(), onError: vi.fn(), onTitle: vi.fn(), onDone: vi.fn() }, { debug: true });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/conversations/conv-123/messages?debug=true",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("does not append ?debug=true when debug is false", async () => {
+    const sseBody = 'event: done\ndata: {"conversationId":"conv-123"}\n\n';
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(sseBody));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue({ ok: true, status: 200, body: stream });
+
+    await sendMessage("conv-123", "Hi", { onDelta: vi.fn(), onBlocked: vi.fn(), onError: vi.fn(), onTitle: vi.fn(), onDone: vi.fn() });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/conversations/conv-123/messages",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("routes debug SSE events to debug callbacks", async () => {
+    const sseBody = [
+      'event: debug_agent\ndata: {"agentId":"test-bot","model":"claude-sonnet-4","temperature":0.7,"maxTokens":1024,"systemPromptPreview":"You are...","isDelegated":false}\n\n',
+      'event: debug_thinking\ndata: {"text":"Let me think about this..."}\n\n',
+      'event: debug_tool\ndata: {"tool":"browse_url","input":{"url":"https://example.com"},"result":"page content","durationMs":500,"resultSize":100}\n\n',
+      'event: debug_stream\ndata: {"tokens":42,"stopReason":"end_turn","totalMs":1500,"iteration":1}\n\n',
+      'event: done\ndata: {"conversationId":"conv-123"}\n\n',
+    ].join("");
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(sseBody));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue({ ok: true, status: 200, body: stream });
+
+    const onDebugAgent = vi.fn();
+    const onDebugThinking = vi.fn();
+    const onDebugTool = vi.fn();
+    const onDebugStream = vi.fn();
+
+    await sendMessage("conv-123", "Hi", {
+      onDelta: vi.fn(), onBlocked: vi.fn(), onError: vi.fn(), onTitle: vi.fn(), onDone: vi.fn(),
+      onDebugAgent, onDebugThinking, onDebugTool, onDebugStream,
+    }, { debug: true });
+
+    expect(onDebugAgent).toHaveBeenCalledWith(expect.objectContaining({ agentId: "test-bot", model: "claude-sonnet-4" }));
+    expect(onDebugThinking).toHaveBeenCalledWith(expect.objectContaining({ text: "Let me think about this..." }));
+    expect(onDebugTool).toHaveBeenCalledWith(expect.objectContaining({ tool: "browse_url", durationMs: 500 }));
+    expect(onDebugStream).toHaveBeenCalledWith(expect.objectContaining({ tokens: 42, stopReason: "end_turn" }));
+  });
+});
