@@ -264,6 +264,7 @@ export function createConversationRouter(
           }
           if (debug) {
             streamParams.thinking = { type: "enabled", budget_tokens: 5000 };
+            streamParams.temperature = 1; // required when thinking is enabled
           }
 
           if (debug) {
