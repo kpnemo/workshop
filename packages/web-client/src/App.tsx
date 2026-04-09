@@ -8,9 +8,11 @@ import { ChatContainer } from "./components/chat-container";
 import { AgentDrawer } from "./components/agent-drawer";
 import { CopilotPanel } from "./components/copilot-panel";
 import { useCopilot } from "./hooks/use-copilot";
+import { useDebug } from "./hooks/use-debug";
 
 function AuthenticatedApp() {
   const { agents, createAgent, updateAgent, deleteAgent, loadAgents } = useAgents();
+  const debug = useDebug();
   const {
     state,
     currentAgentId,
@@ -19,7 +21,7 @@ function AuthenticatedApp() {
     selectConversation,
     deleteConversation,
     switchAgent,
-  } = useChat(agents[0]?.id ?? null, agents.map((a) => a.id));
+  } = useChat(agents[0]?.id ?? null, agents.map((a) => a.id), debug);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const copilot = useCopilot({
     agents,
@@ -51,6 +53,10 @@ function AuthenticatedApp() {
         onAgentChange={switchAgent}
         onSend={sendMessage}
         onRetry={() => startNewChat()}
+        isDebug={debug.isDebug}
+        onDebugToggle={debug.toggleDebug}
+        debugEvents={debug.debugEvents}
+        onDebugClear={debug.clearEvents}
       />
       {drawerOpen && (
         <AgentDrawer

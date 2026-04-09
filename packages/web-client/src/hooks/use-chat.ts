@@ -8,6 +8,7 @@ import {
   sendMessage as apiSendMessage,
 } from "../lib/api";
 import type { Message, ChatState } from "../types";
+import type { useDebug } from "./use-debug";
 
 const LAST_AGENT_KEY = "lastAgentId";
 
@@ -19,7 +20,11 @@ function setLastAgentId(id: string): void {
   localStorage.setItem(LAST_AGENT_KEY, id);
 }
 
-export function useChat(defaultAgentId: string | null, agentIds: string[] = []) {
+export function useChat(
+  defaultAgentId: string | null,
+  agentIds: string[] = [],
+  debug?: ReturnType<typeof useDebug>
+) {
   const [state, setState] = useState<ChatState>({
     conversationId: null,
     messages: [],
@@ -196,6 +201,10 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
         isStreaming: true, error: null,
       }));
 
+      if (debug?.isDebug) {
+        debug.startTurn(text);
+      }
+
       apiSendMessage(state.conversationId, text, {
         onDelta: (deltaText, agentId) => {
           const targetId = activeAssistantIdRef.current;
@@ -282,6 +291,10 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
               c.id === s.conversationId ? { ...c, agentId: data.to } : c
             ),
           }));
+          debug?.addEvent({
+            type: "assignment",
+            data: { from: data.from, to: data.to, agentName: data.agentName, reason: data.reason },
+          });
         },
         onDelegationStart: (data) => {
           const specialistMessageId = uuidv4();
@@ -309,6 +322,10 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
             ...s,
             messages: [...s.messages, delegationMessage, specialistMessage],
           }));
+          debug?.addEvent({
+            type: "delegation",
+            data: { from: data.from, to: data.to, context: data.context, agentName: data.agentName },
+          });
         },
         onDelegationEnd: (data) => {
           const delegationMessage: Message = {
@@ -327,10 +344,26 @@ export function useChat(defaultAgentId: string | null, agentIds: string[] = []) 
             ...s,
             messages: [...s.messages, delegationMessage],
           }));
+          debug?.addEvent({
+            type: "delegation",
+            data: { from: data.from, to: data.to, summary: data.summary, agentName: data.agentName },
+          });
         },
-      });
+        onDebugAgent: (data) => {
+          debug?.addEvent({ type: "agent", data });
+        },
+        onDebugThinking: (data) => {
+          debug?.addEvent({ type: "thinking", data });
+        },
+        onDebugTool: (data) => {
+          debug?.addEvent({ type: "tool", data });
+        },
+        onDebugStream: (data) => {
+          debug?.addEvent({ type: "stream", data });
+        },
+      }, { debug: debug?.isDebug });
     },
-    [state.conversationId, state.isStreaming]
+    [state.conversationId, state.isStreaming, debug]
   );
 
   const startNewChat = useCallback(async (agentId?: string) => {

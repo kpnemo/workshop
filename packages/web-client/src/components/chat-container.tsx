@@ -1,8 +1,10 @@
 import { MessageList } from "./message-list";
 import { ChatInput } from "./chat-input";
 import { AgentSelector } from "./agent-selector";
+import { DebugToggle } from "./debug-toggle";
+import { DebugPanel } from "./debug-panel";
 import { Button } from "./ui/button";
-import type { Message, AgentSummary } from "../types";
+import type { Message, AgentSummary, DebugEvent } from "../types";
 
 interface ChatContainerProps {
   conversationId: string | null;
@@ -15,6 +17,10 @@ interface ChatContainerProps {
   onAgentChange: (agentId: string) => void;
   onSend: (text: string) => void;
   onRetry: () => void;
+  isDebug: boolean;
+  onDebugToggle: () => void;
+  debugEvents: DebugEvent[];
+  onDebugClear: () => void;
 }
 
 export function ChatContainer({
@@ -28,6 +34,10 @@ export function ChatContainer({
   onAgentChange,
   onSend,
   onRetry,
+  isDebug,
+  onDebugToggle,
+  debugEvents,
+  onDebugClear,
 }: ChatContainerProps) {
   if (isConnecting) {
     return (
@@ -49,29 +59,34 @@ export function ChatContainer({
   const hasMessages = messages.some((m) => m.role === "user");
 
   return (
-    <div className="flex flex-1 flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <AgentSelector
-          agents={agents}
-          currentAgentId={currentAgentId}
-          locked={hasMessages}
-          onSelect={onAgentChange}
-        />
+    <div className="flex flex-1">
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <AgentSelector
+            agents={agents}
+            currentAgentId={currentAgentId}
+            locked={hasMessages}
+            onSelect={onAgentChange}
+          />
+          <DebugToggle isDebug={isDebug} onToggle={onDebugToggle} />
+        </div>
+
+        {/* Messages */}
+        <MessageList messages={messages} isStreaming={isStreaming} agents={agents} />
+
+        {/* Error banner */}
+        {error && conversationId && (
+          <div className="border-t border-red-900/50 bg-red-950/30 px-4 py-2 text-center text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        {/* Input */}
+        <ChatInput onSend={onSend} disabled={isStreaming || isConnecting} />
       </div>
 
-      {/* Messages */}
-      <MessageList messages={messages} isStreaming={isStreaming} agents={agents} />
-
-      {/* Error banner */}
-      {error && conversationId && (
-        <div className="border-t border-red-900/50 bg-red-950/30 px-4 py-2 text-center text-sm text-red-400">
-          {error}
-        </div>
-      )}
-
-      {/* Input */}
-      <ChatInput onSend={onSend} disabled={isStreaming || isConnecting} />
+      {isDebug && <DebugPanel events={debugEvents} onClear={onDebugClear} />}
     </div>
   );
 }
