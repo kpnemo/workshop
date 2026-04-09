@@ -263,8 +263,13 @@ export function createConversationRouter(
             streamParams.tools = tools;
           }
           if (debug) {
-            streamParams.thinking = { type: "enabled", budget_tokens: 5000 };
+            const thinkingBudget = 5000;
+            streamParams.thinking = { type: "enabled", budget_tokens: thinkingBudget };
             streamParams.temperature = 1; // required when thinking is enabled
+            // max_tokens must exceed thinking budget
+            if (streamParams.max_tokens <= thinkingBudget) {
+              streamParams.max_tokens = thinkingBudget + 1024;
+            }
           }
 
           if (debug) {
