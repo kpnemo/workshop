@@ -111,6 +111,11 @@ export function useChat(
     loadConversations();
   }, [loadConversations]);
 
+  // Clear debug events when conversation changes
+  useEffect(() => {
+    debug?.clearEvents();
+  }, [state.conversationId]);
+
   const selectConversation = useCallback(async (id: string) => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
     try {
