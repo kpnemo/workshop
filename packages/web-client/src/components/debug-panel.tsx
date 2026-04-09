@@ -21,8 +21,8 @@ const EVENT_STYLES: Record<string, { color: string; label: string }> = {
 
 function ThinkingContent({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = text.length > 200;
-  const display = isLong && !expanded ? text.slice(0, 200) + "..." : text;
+  const isLong = text.split("\n").length > 3 || text.length > 200;
+  const display = isLong && !expanded ? text.split("\n").slice(0, 3).join("\n").slice(0, 200) + "..." : text;
 
   return (
     <div className="border-l-2 border-purple-400/30 pl-2 text-muted-foreground">

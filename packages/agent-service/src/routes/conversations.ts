@@ -152,7 +152,7 @@ export function createConversationRouter(
     db.addMessage(conversation.id, "user", message);
 
     startSSE(res);
-      const debug = req.query.debug === "true";
+    const debug = req.query.debug === "true";
 
     try {
       const MAX_TOOL_ITERATIONS = 5;
