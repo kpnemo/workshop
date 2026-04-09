@@ -349,3 +349,90 @@ describe("Tool execution loop", () => {
     expect(fakeTool.execute).toHaveBeenCalledWith({ query: "test" }, expect.objectContaining({ conversationId: "conv-tool" }));
   });
 });
+
+describe("Debug mode", () => {
+  it("emits debug_agent and debug_stream events when ?debug=true", async () => {
+    // Reset to default mock
+    mockMessagesStream = vi.fn().mockReturnValue(mockStream);
+    mockMessagesCreate = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "Debug Test Title" }],
+    });
+
+    const app = buildApp(new Map([["test-bot", testAgent]]));
+    db.createConversation("conv-debug", "test-bot", "user-a");
+
+    const res = await makeRequest(
+      app, "POST", "/conversations/conv-debug/messages?debug=true",
+      { message: "Hello debug" }, userAToken
+    );
+
+    expect(res.body).toContain("event: debug_agent");
+    expect(res.body).toContain('"agentId":"test-bot"');
+    expect(res.body).toContain('"model":"claude-sonnet-4-20250514"');
+    expect(res.body).toContain("event: debug_stream");
+    expect(res.body).toContain('"stopReason":"end_turn"');
+    // Normal events should still be present
+    expect(res.body).toContain("event: delta");
+    expect(res.body).toContain("event: done");
+  });
+
+  it("does NOT emit debug events when ?debug is absent", async () => {
+    mockMessagesStream = vi.fn().mockReturnValue(mockStream);
+    mockMessagesCreate = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "Normal Title" }],
+    });
+
+    const app = buildApp(new Map([["test-bot", testAgent]]));
+    db.createConversation("conv-normal", "test-bot", "user-a");
+
+    const res = await makeRequest(
+      app, "POST", "/conversations/conv-normal/messages",
+      { message: "Hello normal" }, userAToken
+    );
+
+    expect(res.body).not.toContain("event: debug_agent");
+    expect(res.body).not.toContain("event: debug_stream");
+    expect(res.body).toContain("event: delta");
+    expect(res.body).toContain("event: done");
+  });
+
+  it("emits debug_tool events for tool execution in debug mode", async () => {
+    const toolService = new ToolService();
+    const fakeTool: Tool = {
+      name: "fake_tool",
+      definition: {
+        name: "fake_tool",
+        description: "A fake tool",
+        input_schema: { type: "object" as const, properties: {} },
+      },
+      execute: vi.fn().mockResolvedValue("tool result data"),
+    };
+    toolService.register(fakeTool);
+
+    const agentWithTools: AgentConfig = {
+      ...testAgent,
+      id: "debug-tool-bot",
+      tools: ["fake_tool"],
+    };
+
+    const toolMock = createToolUseStream();
+    mockMessagesStream = toolMock.stream;
+    mockMessagesCreate = toolMock.create;
+
+    const app = buildAppWithTools(
+      new Map([["debug-tool-bot", agentWithTools]]),
+      toolService
+    );
+    db.createConversation("conv-debug-tool", "debug-tool-bot", "user-a");
+
+    const res = await makeRequest(
+      app, "POST", "/conversations/conv-debug-tool/messages?debug=true",
+      { message: "Use the tool" }, userAToken
+    );
+
+    expect(res.body).toContain("event: debug_tool");
+    expect(res.body).toContain('"tool":"fake_tool"');
+    expect(res.body).toContain("event: debug_agent");
+    expect(res.body).toContain("event: debug_stream");
+  });
+});

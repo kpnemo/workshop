@@ -152,6 +152,7 @@ export function createConversationRouter(
     db.addMessage(conversation.id, "user", message);
 
     startSSE(res);
+      const debug = req.query.debug === "true";
 
     try {
       const MAX_TOOL_ITERATIONS = 5;
@@ -261,6 +262,20 @@ export function createConversationRouter(
           if (tools.length > 0) {
             streamParams.tools = tools;
           }
+          if (debug) {
+            streamParams.thinking = { type: "enabled", budget_tokens: 5000 };
+          }
+
+          if (debug) {
+            writeSSE(res, "debug_agent", {
+              agentId: curAgentId,
+              model: curAgent.model,
+              temperature: curAgent.temperature,
+              maxTokens: curAgent.maxTokens,
+              systemPromptPreview: curAgent.systemPrompt.slice(0, 200),
+              isDelegated: curIsDelegate,
+            });
+          }
 
           const streamStart = Date.now();
           let stream;
@@ -289,6 +304,24 @@ export function createConversationRouter(
           const streamMs = Date.now() - streamStart;
 
           console.log(`[stream] Response complete (${fullResponse.length} chars, ${streamMs}ms, stop: ${finalMessage.stop_reason})`);
+
+          if (debug) {
+            const thinkingBlocks = finalMessage.content.filter(
+              (block: any) => block.type === "thinking"
+            );
+            for (const block of thinkingBlocks) {
+              writeSSE(res, "debug_thinking", { text: (block as any).thinking });
+            }
+          }
+
+          if (debug) {
+            writeSSE(res, "debug_stream", {
+              tokens: finalMessage.usage?.output_tokens ?? 0,
+              stopReason: finalMessage.stop_reason,
+              totalMs: streamMs,
+              iteration: iterations,
+            });
+          }
 
           // Check if Claude wants to use tools
           if (finalMessage.stop_reason !== "tool_use") {
@@ -324,6 +357,16 @@ export function createConversationRouter(
 
             console.log(`[tool] ${toolUse.name} completed (${toolMs}ms, ${result.length} chars)`);
             writeSSE(res, "tool_done", { tool: toolUse.name, duration_ms: toolMs });
+
+            if (debug) {
+              writeSSE(res, "debug_tool", {
+                tool: toolUse.name,
+                input: toolUse.input,
+                result: result.slice(0, 500),
+                durationMs: toolMs,
+                resultSize: result.length,
+              });
+            }
 
             toolResults.push({
               type: "tool_result",
