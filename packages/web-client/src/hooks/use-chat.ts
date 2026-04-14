@@ -6,6 +6,8 @@ import {
   deleteConversation as apiDeleteConversation,
   getConversation,
   sendMessage as apiSendMessage,
+  refreshSummary as apiRefreshSummary,
+  toggleSummary as apiToggleSummary,
 } from "../lib/api";
 import type { Message, ChatState, FileInfo } from "../types";
 import type { useDebug } from "./use-debug";
@@ -32,6 +34,8 @@ export function useChat(
     isStreaming: false,
     isConnecting: true,
     error: null,
+    summary: null,
+    summaryEnabled: false,
   });
 
   const activeAssistantIdRef = useRef<string | null>(null);
@@ -80,6 +84,8 @@ export function useChat(
           conversationId: mostRecent.id,
           messages,
           isConnecting: false,
+          summary: detail.summary ?? null,
+          summaryEnabled: detail.summaryEnabled ?? false,
         }));
       } else {
         const agentId = resolveAgentId();
@@ -133,6 +139,8 @@ export function useChat(
         conversationId: id,
         messages,
         isConnecting: false,
+        summary: detail.summary ?? null,
+        summaryEnabled: detail.summaryEnabled ?? false,
       }));
     } catch (err) {
       setState((s) => ({
@@ -373,6 +381,12 @@ export function useChat(
         onDebugStream: (data) => {
           debug?.addEvent({ type: "stream", data });
         },
+        onSummary: (data) => {
+          setState((s) => ({ ...s, summary: data.summary }));
+        },
+        onDebugSummary: (data) => {
+          debug?.addEvent({ type: "summary", data });
+        },
       }, { debug: debug?.isDebug });
     },
     [state.conversationId, state.isStreaming, debug]
@@ -381,7 +395,7 @@ export function useChat(
   const startNewChat = useCallback(async (agentId?: string) => {
     const resolvedId = agentId || resolveAgentId();
     if (!resolvedId) return;
-    setState((s) => ({ ...s, messages: [], isConnecting: true, error: null, isStreaming: false }));
+    setState((s) => ({ ...s, messages: [], isConnecting: true, error: null, isStreaming: false, summary: null, summaryEnabled: false }));
     try {
       const res = await createConversation(resolvedId);
       setLastAgentId(resolvedId);
@@ -414,6 +428,22 @@ export function useChat(
     [state.conversationId, state.messages, startNewChat]
   );
 
+  const setSummaryEnabled = useCallback(
+    async (enabled: boolean) => {
+      if (!state.conversationId) return;
+      setState((s) => ({ ...s, summaryEnabled: enabled }));
+      await apiToggleSummary(state.conversationId, enabled);
+    },
+    [state.conversationId]
+  );
+
+  const refreshSummary = useCallback(async () => {
+    if (!state.conversationId) return;
+    const summary = await apiRefreshSummary(state.conversationId);
+    setState((s) => ({ ...s, summary }));
+    debug?.addEvent({ type: "summary", data: { summary, source: "manual-refresh" } });
+  }, [state.conversationId, debug]);
+
   const currentAgentId =
     state.conversations.find((c) => c.id === state.conversationId)?.agentId ?? resolveAgentId() ?? "";
 
@@ -425,5 +455,7 @@ export function useChat(
     selectConversation,
     deleteConversation,
     switchAgent,
+    setSummaryEnabled,
+    refreshSummary,
   };
 }
