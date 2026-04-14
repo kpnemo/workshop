@@ -229,6 +229,35 @@ No avatar.`;
     expect(() => deleteAgent(tmpDir, "nonexistent")).toThrow();
   });
 
+  it("parses summaryInstruction from frontmatter", () => {
+    const md = `---
+name: Test Agent
+model: claude-sonnet-4-20250514
+summaryInstruction: "Focus on action items and decisions."
+---
+You are a test agent.`;
+    fs.writeFileSync(path.join(tmpDir, "test-summary.md"), md);
+
+    const agents = loadAgents(tmpDir);
+    const agent = agents.get("test-summary");
+    expect(agent).toBeDefined();
+    expect(agent!.summaryInstruction).toBe("Focus on action items and decisions.");
+  });
+
+  it("summaryInstruction is undefined when not in frontmatter", () => {
+    const md = `---
+name: Plain Agent
+model: claude-sonnet-4-20250514
+---
+You are a plain agent.`;
+    fs.writeFileSync(path.join(tmpDir, "test-plain.md"), md);
+
+    const agents = loadAgents(tmpDir);
+    const agent = agents.get("test-plain");
+    expect(agent).toBeDefined();
+    expect(agent!.summaryInstruction).toBeUndefined();
+  });
+
   it("parses delegates field from frontmatter", () => {
     const md = `---
 name: Main Agent
