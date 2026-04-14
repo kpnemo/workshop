@@ -62,6 +62,17 @@ export interface User {
   createdAt: Date;
 }
 
+export interface FileRecord {
+  id: string;
+  userId: string;
+  filename: string;
+  storagePath: string;
+  sizeBytes: number;
+  mimeType: string;
+  description: string | null;
+  createdAt: Date;
+}
+
 declare module "express-serve-static-core" {
   interface Request {
     userId?: string;

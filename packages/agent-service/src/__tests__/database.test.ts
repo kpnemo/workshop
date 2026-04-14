@@ -217,4 +217,77 @@ describe("Database", () => {
       expect(delegationMsg!.delegationMeta).toEqual(meta);
     });
   });
+
+  describe("File methods", () => {
+    it("addFile inserts a file record and getFilesByUser returns it", () => {
+      db.createUser("u-1", "test@example.com", "pw");
+      db.addFile({
+        id: "f-1",
+        userId: "u-1",
+        filename: "report.pdf",
+        storagePath: "/uploads/u-1/f-1-report.pdf",
+        sizeBytes: 1024,
+        mimeType: "application/pdf",
+      });
+
+      const files = db.getFilesByUser("u-1");
+      expect(files).toHaveLength(1);
+      expect(files[0].id).toBe("f-1");
+      expect(files[0].filename).toBe("report.pdf");
+      expect(files[0].sizeBytes).toBe(1024);
+      expect(files[0].mimeType).toBe("application/pdf");
+      expect(files[0].description).toBeNull();
+      expect(files[0].createdAt).toBeInstanceOf(Date);
+    });
+
+    it("getFilesByUser returns only that user's files", () => {
+      db.createUser("u-1", "a@example.com", "pw");
+      db.createUser("u-2", "b@example.com", "pw");
+      db.addFile({ id: "f-1", userId: "u-1", filename: "a.txt", storagePath: "/a", sizeBytes: 10, mimeType: "text/plain" });
+      db.addFile({ id: "f-2", userId: "u-2", filename: "b.txt", storagePath: "/b", sizeBytes: 20, mimeType: "text/plain" });
+
+      expect(db.getFilesByUser("u-1")).toHaveLength(1);
+      expect(db.getFilesByUser("u-2")).toHaveLength(1);
+    });
+
+    it("getFilesByUser returns empty array when user has no files", () => {
+      db.createUser("u-1", "a@example.com", "pw");
+      expect(db.getFilesByUser("u-1")).toEqual([]);
+    });
+
+    it("getFileById returns the file record", () => {
+      db.createUser("u-1", "a@example.com", "pw");
+      db.addFile({ id: "f-1", userId: "u-1", filename: "data.csv", storagePath: "/data", sizeBytes: 500, mimeType: "text/csv" });
+
+      const file = db.getFileById("f-1");
+      expect(file).toBeDefined();
+      expect(file!.filename).toBe("data.csv");
+    });
+
+    it("getFileById returns undefined for unknown id", () => {
+      expect(db.getFileById("nonexistent")).toBeUndefined();
+    });
+
+    it("updateFileDescription sets the description", () => {
+      db.createUser("u-1", "a@example.com", "pw");
+      db.addFile({ id: "f-1", userId: "u-1", filename: "report.pdf", storagePath: "/r", sizeBytes: 100, mimeType: "application/pdf" });
+      db.updateFileDescription("f-1", "A quarterly report.");
+
+      const file = db.getFileById("f-1");
+      expect(file!.description).toBe("A quarterly report.");
+    });
+
+    it("deleteFile removes the record and returns true", () => {
+      db.createUser("u-1", "a@example.com", "pw");
+      db.addFile({ id: "f-1", userId: "u-1", filename: "old.txt", storagePath: "/old", sizeBytes: 50, mimeType: "text/plain" });
+
+      expect(db.deleteFile("f-1")).toBe(true);
+      expect(db.getFileById("f-1")).toBeUndefined();
+      expect(db.getFilesByUser("u-1")).toEqual([]);
+    });
+
+    it("deleteFile returns false for unknown id", () => {
+      expect(db.deleteFile("nonexistent")).toBe(false);
+    });
+  });
 });
