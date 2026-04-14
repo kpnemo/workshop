@@ -11,7 +11,7 @@ export interface DelegationMeta {
 export interface DebugEvent {
   id: string;
   timestamp: Date;
-  type: 'agent' | 'thinking' | 'tool' | 'stream' | 'delegation' | 'assignment';
+  type: 'agent' | 'thinking' | 'tool' | 'stream' | 'delegation' | 'assignment' | 'summary';
   data: Record<string, unknown>;
   turn?: string;
 }
@@ -31,6 +31,7 @@ export interface ConversationSummary {
   title: string | null;
   updatedAt: string;
   messageCount: number;
+  summaryEnabled: boolean;
 }
 
 export interface ChatState {
@@ -40,6 +41,8 @@ export interface ChatState {
   isStreaming: boolean;
   isConnecting: boolean;
   error: string | null;
+  summary: string | null;
+  summaryEnabled: boolean;
 }
 
 export interface ConversationResponse {
@@ -54,6 +57,8 @@ export interface ConversationDetail {
   activeAgent?: string | null;
   title: string | null;
   createdAt: string;
+  summary: string | null;
+  summaryEnabled: boolean;
   messages: Array<{
     role: "user" | "assistant" | "system";
     content: string;
@@ -76,6 +81,8 @@ export interface SendMessageCallbacks {
   onDebugThinking?: (data: { text: string }) => void;
   onDebugTool?: (data: { tool: string; input: Record<string, unknown>; result: string; durationMs: number; resultSize: number }) => void;
   onDebugStream?: (data: { tokens: number; stopReason: string; totalMs: number; iteration: number }) => void;
+  onSummary?: (data: { summary: string }) => void;
+  onDebugSummary?: (data: { summary: string }) => void;
 }
 
 export interface AgentAvatar {
