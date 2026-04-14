@@ -190,6 +190,12 @@ export async function sendMessage(
           case "debug_stream":
             callbacks.onDebugStream?.(data);
             break;
+          case "summary":
+            callbacks.onSummary?.(data);
+            break;
+          case "debug_summary":
+            callbacks.onDebugSummary?.(data);
+            break;
           case "done":
             callbacks.onDone();
             break;
@@ -213,6 +219,34 @@ export async function getConversation(
   }
 
   return res.json();
+}
+
+export async function refreshSummary(conversationId: string): Promise<string | null> {
+  const res = await fetch(`${BASE_URL}/api/conversations/${conversationId}/summary`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || "Failed to refresh summary");
+  }
+
+  const data = await res.json();
+  return data.summary;
+}
+
+export async function toggleSummary(conversationId: string, enabled: boolean): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/conversations/${conversationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ summaryEnabled: enabled }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || "Failed to toggle summary");
+  }
 }
 
 export async function uploadFile(file: File): Promise<FileInfo> {
