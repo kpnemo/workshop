@@ -123,3 +123,12 @@ export interface CreateAgentInput {
     boundaryMessage: string;
   };
 }
+
+export interface FileInfo {
+  id: string;
+  filename: string;
+  sizeBytes: number;
+  mimeType: string;
+  description: string | null;
+  createdAt: string;
+}

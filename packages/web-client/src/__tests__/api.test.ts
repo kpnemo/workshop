@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createConversation, sendMessage, getConversation } from "../lib/api";
+import { createConversation, sendMessage, getConversation, uploadFile, listFiles, deleteFile } from "../lib/api";
 
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
@@ -327,5 +327,82 @@ describe("sendMessage with debug", () => {
     expect(onDebugThinking).toHaveBeenCalledWith(expect.objectContaining({ text: "Let me think about this..." }));
     expect(onDebugTool).toHaveBeenCalledWith(expect.objectContaining({ tool: "browse_url", durationMs: 500 }));
     expect(onDebugStream).toHaveBeenCalledWith(expect.objectContaining({ tokens: 42, stopReason: "end_turn" }));
+  });
+});
+
+describe("uploadFile", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("sends multipart POST to /api/files and returns file info", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          id: "f-123",
+          filename: "notes.txt",
+          sizeBytes: 100,
+          mimeType: "text/plain",
+          description: "A text file.",
+          createdAt: "2026-04-14T10:00:00Z",
+        }),
+    });
+
+    const file = new File(["hello"], "notes.txt", { type: "text/plain" });
+    const result = await uploadFile(file);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/files",
+      expect.objectContaining({ method: "POST" })
+    );
+    // Should use FormData, not JSON
+    const call = mockFetch.mock.calls[0][1];
+    expect(call.body).toBeInstanceOf(FormData);
+    expect(result.id).toBe("f-123");
+    expect(result.filename).toBe("notes.txt");
+  });
+
+  it("throws on non-2xx response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({ error: "File too large" }),
+    });
+
+    const file = new File(["x"], "big.txt", { type: "text/plain" });
+    await expect(uploadFile(file)).rejects.toThrow("File too large");
+  });
+});
+
+describe("listFiles", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("sends GET to /api/files and returns file list", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([{ id: "f-1", filename: "a.txt", sizeBytes: 10, mimeType: "text/plain", description: null, createdAt: "2026-04-14T10:00:00Z" }]),
+    });
+
+    const files = await listFiles();
+    expect(files).toHaveLength(1);
+    expect(files[0].filename).toBe("a.txt");
+  });
+});
+
+describe("deleteFile", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("sends DELETE to /api/files/:id", async () => {
+    mockFetch.mockResolvedValue({ ok: true });
+
+    await deleteFile("f-123");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/files/f-123",
+      expect.objectContaining({ method: "DELETE" })
+    );
   });
 });
