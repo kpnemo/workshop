@@ -3,6 +3,8 @@ import { ChatInput } from "./chat-input";
 import { AgentSelector } from "./agent-selector";
 import { DebugToggle } from "./debug-toggle";
 import { DebugPanel } from "./debug-panel";
+import { SummaryPanel } from "./summary-panel";
+import { SummaryToggle } from "./summary-toggle";
 import { Button } from "./ui/button";
 import type { Message, AgentSummary, DebugEvent, FileInfo } from "../types";
 
@@ -21,6 +23,10 @@ interface ChatContainerProps {
   onDebugToggle: () => void;
   debugEvents: DebugEvent[];
   onDebugClear: () => void;
+  summary: string | null;
+  summaryEnabled: boolean;
+  onSummaryToggle: () => void;
+  onSummaryRefresh: () => Promise<void>;
 }
 
 export function ChatContainer({
@@ -38,6 +44,10 @@ export function ChatContainer({
   onDebugToggle,
   debugEvents,
   onDebugClear,
+  summary,
+  summaryEnabled,
+  onSummaryToggle,
+  onSummaryRefresh,
 }: ChatContainerProps) {
   if (isConnecting) {
     return (
@@ -69,8 +79,23 @@ export function ChatContainer({
             locked={hasMessages}
             onSelect={onAgentChange}
           />
-          <DebugToggle isDebug={isDebug} onToggle={onDebugToggle} />
+          <div className="flex items-center gap-2">
+            <SummaryToggle
+              enabled={summaryEnabled}
+              disabled={isStreaming}
+              onToggle={onSummaryToggle}
+            />
+            <DebugToggle isDebug={isDebug} onToggle={onDebugToggle} />
+          </div>
         </div>
+
+        {summaryEnabled && (
+          <SummaryPanel
+            summary={summary}
+            onRefresh={onSummaryRefresh}
+            isStreaming={isStreaming}
+          />
+        )}
 
         {/* Messages */}
         <MessageList messages={messages} isStreaming={isStreaming} agents={agents} />

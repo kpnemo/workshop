@@ -21,6 +21,8 @@ function AuthenticatedApp() {
     selectConversation,
     deleteConversation,
     switchAgent,
+    setSummaryEnabled,
+    refreshSummary,
   } = useChat(agents[0]?.id ?? null, agents.map((a) => a.id), debug);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const copilot = useCopilot({
@@ -57,6 +59,10 @@ function AuthenticatedApp() {
         onDebugToggle={debug.toggleDebug}
         debugEvents={debug.debugEvents}
         onDebugClear={debug.clearEvents}
+        summary={state.summary}
+        summaryEnabled={state.summaryEnabled}
+        onSummaryToggle={() => setSummaryEnabled(!state.summaryEnabled)}
+        onSummaryRefresh={refreshSummary}
       />
       {drawerOpen && (
         <AgentDrawer
