@@ -9,3 +9,4 @@ dist/
 .playwright-mcp/
 *.tsbuildinfo
 workshop-onboarding-workspace/
+.worktrees/
