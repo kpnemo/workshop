@@ -9,19 +9,19 @@ interface SummaryPanelProps {
 export function SummaryPanel({ summary, onRefresh, isStreaming }: SummaryPanelProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cooldown, setCooldown] = useState(false);
-  const [prevSummary, setPrevSummary] = useState(summary);
   const [animating, setAnimating] = useState(false);
+  const prevSummaryRef = useRef(summary);
   const cooldownTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // Detect summary changes for fade-in animation
   useEffect(() => {
-    if (summary !== prevSummary) {
+    if (summary !== prevSummaryRef.current) {
+      prevSummaryRef.current = summary;
       setAnimating(true);
-      setPrevSummary(summary);
       const timer = setTimeout(() => setAnimating(false), 500);
       return () => clearTimeout(timer);
     }
-  }, [summary, prevSummary]);
+  }, [summary]);
 
   useEffect(() => {
     return () => {
