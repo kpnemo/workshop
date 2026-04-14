@@ -26,7 +26,8 @@ export class FileService {
     const userDir = path.join(this.uploadsDir, userId);
     fs.mkdirSync(userDir, { recursive: true });
 
-    const storageName = `${fileId}-${filename}`;
+    const safeName = path.basename(filename);
+    const storageName = `${fileId}-${safeName}`;
     const storagePath = path.join(userDir, storageName);
 
     // 1. Save to disk
@@ -88,9 +89,9 @@ export class FileService {
     }
   }
 
-  async readFileContent(fileId: string): Promise<string> {
+  async readFileContent(fileId: string, userId?: string): Promise<string> {
     const file = this.db.getFileById(fileId);
-    if (!file) {
+    if (!file || (userId && file.userId !== userId)) {
       return `Error: File with ID "${fileId}" not found.`;
     }
 

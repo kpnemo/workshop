@@ -25,7 +25,7 @@ export function createReadUserFileTool(): Tool {
       if (!file_id || typeof file_id !== "string") {
         return "Error: A valid file_id string is required.";
       }
-      return context.fileService.readFileContent(file_id);
+      return context.fileService.readFileContent(file_id, context.userId);
     },
   };
 }
