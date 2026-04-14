@@ -17,6 +17,7 @@ const EVENT_STYLES: Record<string, { color: string; label: string }> = {
   stream: { color: "text-green-400", label: "STREAM" },
   delegation: { color: "text-pink-400", label: "DELEGATE" },
   assignment: { color: "text-pink-400", label: "ASSIGN" },
+  summary: { color: "text-cyan-400", label: "SUMMARY" },
 };
 
 function ThinkingContent({ text }: { text: string }) {
@@ -91,6 +92,17 @@ function EventEntry({ event }: { event: DebugEvent }) {
           <>
             <div className="text-muted-foreground">{String(data.from)} → {String(data.to)}</div>
             {data.reason && <div className="text-muted-foreground/60 truncate">reason: {String(data.reason)}</div>}
+          </>
+        )}
+
+        {event.type === "summary" && (
+          <>
+            <div className="text-muted-foreground/60 truncate">
+              {data.source === "manual-refresh" ? "Manual refresh" : "Agent updated"}
+            </div>
+            <div className="text-muted-foreground mt-0.5 leading-relaxed">
+              {String(data.summary ?? "")}
+            </div>
           </>
         )}
       </div>
