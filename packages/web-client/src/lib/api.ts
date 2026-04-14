@@ -2,6 +2,7 @@ import type {
   ConversationResponse,
   ConversationDetail,
   ConversationSummary,
+  FileInfo,
   SendMessageCallbacks,
 } from "../types";
 
@@ -212,4 +213,46 @@ export async function getConversation(
   }
 
   return res.json();
+}
+
+export async function uploadFile(file: File): Promise<FileInfo> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${BASE_URL}/api/files`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || "Failed to upload file");
+  }
+
+  return res.json();
+}
+
+export async function listFiles(): Promise<FileInfo[]> {
+  const res = await fetch(`${BASE_URL}/api/files`, {
+    headers: { ...authHeaders() },
+  });
+
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || "Failed to list files");
+  }
+
+  return res.json();
+}
+
+export async function deleteFile(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/files/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to delete file");
+  }
 }

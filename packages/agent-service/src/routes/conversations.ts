@@ -6,6 +6,7 @@ import { Database } from "../services/database.js";
 import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
 import type { ToolService } from "../services/tool-service.js";
+import type { FileService } from "../services/file-service.js";
 
 let anthropic: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -18,7 +19,8 @@ function getClient(): Anthropic {
 export function createConversationRouter(
   agents: Map<string, AgentConfig>,
   db: Database,
-  toolService?: ToolService
+  toolService?: ToolService,
+  fileService?: FileService
 ): Router {
   const router = Router();
 
@@ -357,7 +359,7 @@ export function createConversationRouter(
             writeSSE(res, "tool_start", { tool: toolUse.name, input: toolUse.input });
 
             const toolStart = Date.now();
-            const toolContext = { conversationId: conversation.id, res, db, agents };
+            const toolContext = { conversationId: conversation.id, res, db, agents, userId: req.userId, fileService };
             const result = await toolService.execute(toolUse.name, toolUse.input, toolContext);
             const toolMs = Date.now() - toolStart;
 

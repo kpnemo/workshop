@@ -16,6 +16,8 @@ import { createAgentsRouter } from "./routes/agents.js";
 import { createCopilotRouter } from "./routes/copilot.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { ToolService } from "./services/tool-service.js";
+import { createFilesRouter } from "./routes/files.js";
+import { FileService } from "./services/file-service.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const AGENTS_DIR =
@@ -61,10 +63,17 @@ const toolService = new ToolService();
 toolService.registerDefaults();
 console.log(`[startup] Tool service initialized`);
 
+// File service
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.resolve(__dirname, "../../../packages/data/uploads");
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const fileService = new FileService(db, UPLOADS_DIR);
+console.log(`[startup] File service initialized, uploads at ${UPLOADS_DIR}`);
+
 // Routes
 app.use("/auth", createAuthRouter(db, JWT_SECRET));
 app.use("/agents", createAgentsRouter(agents, AGENTS_DIR, toolService));
-app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService));
+app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService, fileService));
+app.use("/files", authMiddleware(JWT_SECRET), createFilesRouter(db, fileService));
 app.use("/copilot", authMiddleware(JWT_SECRET), createCopilotRouter(agents, AGENTS_DIR, toolService.getAvailableTools()));
 
 // Start server

@@ -1,5 +1,5 @@
 import BetterSqlite3 from "better-sqlite3";
-import type { Conversation, ConversationSummary, Message } from "../types.js";
+import type { Conversation, ConversationSummary, FileRecord, Message } from "../types.js";
 
 export class Database {
   private db: BetterSqlite3.Database;
@@ -39,6 +39,19 @@ export class Database {
       );
 
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+
+      CREATE TABLE IF NOT EXISTS files (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        filename TEXT NOT NULL,
+        storage_path TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        mime_type TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_files_user ON files(user_id);
     `);
   }
 
@@ -180,6 +193,55 @@ export class Database {
       this.db.exec("ALTER TABLE messages ADD COLUMN delegation_meta TEXT");
       console.log("[database] Migration: added delegation_meta column to messages");
     }
+  }
+
+  addFile(params: { id: string; userId: string; filename: string; storagePath: string; sizeBytes: number; mimeType: string }): void {
+    const now = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO files (id, user_id, filename, storage_path, size_bytes, mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(params.id, params.userId, params.filename, params.storagePath, params.sizeBytes, params.mimeType, now);
+  }
+
+  getFilesByUser(userId: string): FileRecord[] {
+    const rows = this.db
+      .prepare("SELECT id, user_id, filename, storage_path, size_bytes, mime_type, description, created_at FROM files WHERE user_id = ? ORDER BY created_at DESC")
+      .all(userId) as Array<{ id: string; user_id: string; filename: string; storage_path: string; size_bytes: number; mime_type: string; description: string | null; created_at: string }>;
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      filename: r.filename,
+      storagePath: r.storage_path,
+      sizeBytes: r.size_bytes,
+      mimeType: r.mime_type,
+      description: r.description,
+      createdAt: new Date(r.created_at),
+    }));
+  }
+
+  getFileById(id: string): FileRecord | undefined {
+    const row = this.db
+      .prepare("SELECT id, user_id, filename, storage_path, size_bytes, mime_type, description, created_at FROM files WHERE id = ?")
+      .get(id) as { id: string; user_id: string; filename: string; storage_path: string; size_bytes: number; mime_type: string; description: string | null; created_at: string } | undefined;
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      userId: row.user_id,
+      filename: row.filename,
+      storagePath: row.storage_path,
+      sizeBytes: row.size_bytes,
+      mimeType: row.mime_type,
+      description: row.description,
+      createdAt: new Date(row.created_at),
+    };
+  }
+
+  updateFileDescription(id: string, description: string): void {
+    this.db.prepare("UPDATE files SET description = ? WHERE id = ?").run(description, id);
+  }
+
+  deleteFile(id: string): boolean {
+    const result = this.db.prepare("DELETE FROM files WHERE id = ?").run(id);
+    return result.changes > 0;
   }
 
   close(): void {

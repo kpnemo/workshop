@@ -6,6 +6,8 @@ import { createBrowseUrlTool } from "./tools/browse-url.js";
 import { createAssignAgentTool } from "./tools/assign-agent.js";
 import { createDelegateToTool } from "./tools/delegate-to.js";
 import { createHandBackTool } from "./tools/hand-back.js";
+import { createSearchFilesTool } from "./tools/search-files.js";
+import { createReadUserFileTool } from "./tools/read-user-file.js";
 
 export interface DelegationOptions {
   isMainAgent?: boolean;
@@ -34,6 +36,8 @@ export class ToolService {
   registerDefaults(): void {
     this.register(createBrowseUrlTool(this.browserManager));
     this.register(createAssignAgentTool());
+    this.register(createSearchFilesTool());
+    this.register(createReadUserFileTool());
   }
 
   getToolsForAgent(
