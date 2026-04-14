@@ -10,3 +10,5 @@ dist/
 *.tsbuildinfo
 workshop-onboarding-workspace/
 .worktrees/
+packages/data/uploads/*
+!packages/data/uploads/.gitkeep
