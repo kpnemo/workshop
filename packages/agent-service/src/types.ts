@@ -20,6 +20,7 @@ export interface AgentConfig {
   topicBoundaries?: TopicBoundaries;
   tools?: string[];
   delegates?: string[];
+  summaryInstruction?: string;
 }
 
 export interface DelegationMeta {
@@ -46,6 +47,8 @@ export interface Conversation {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  summary: string | null;
+  summaryEnabled: boolean;
 }
 
 export interface ConversationSummary {
@@ -54,6 +57,7 @@ export interface ConversationSummary {
   title: string | null;
   updatedAt: Date;
   messageCount: number;
+  summaryEnabled: boolean;
 }
 
 export interface User {
