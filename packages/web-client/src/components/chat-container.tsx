@@ -4,7 +4,7 @@ import { AgentSelector } from "./agent-selector";
 import { DebugToggle } from "./debug-toggle";
 import { DebugPanel } from "./debug-panel";
 import { Button } from "./ui/button";
-import type { Message, AgentSummary, DebugEvent } from "../types";
+import type { Message, AgentSummary, DebugEvent, FileInfo } from "../types";
 
 interface ChatContainerProps {
   conversationId: string | null;
@@ -15,7 +15,7 @@ interface ChatContainerProps {
   agents: AgentSummary[];
   currentAgentId: string;
   onAgentChange: (agentId: string) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, attachment?: FileInfo) => void;
   onRetry: () => void;
   isDebug: boolean;
   onDebugToggle: () => void;

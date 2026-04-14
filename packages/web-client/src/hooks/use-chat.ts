@@ -7,7 +7,7 @@ import {
   getConversation,
   sendMessage as apiSendMessage,
 } from "../lib/api";
-import type { Message, ChatState } from "../types";
+import type { Message, ChatState, FileInfo } from "../types";
 import type { useDebug } from "./use-debug";
 
 const LAST_AGENT_KEY = "lastAgentId";
@@ -187,11 +187,18 @@ export function useChat(
   }, [state.conversationId, state.conversations, state.isConnecting, selectConversation, resolveAgentId]);
 
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string, attachment?: FileInfo) => {
       if (!state.conversationId || state.isStreaming) return;
 
+      // Prepend attachment note if a file was attached
+      let messageText = text;
+      if (attachment) {
+        const prefix = `[Attached file: ${attachment.filename}]`;
+        messageText = text ? `${prefix}\n${text}` : prefix;
+      }
+
       const userMessage: Message = {
-        id: uuidv4(), role: "user", content: text, timestamp: new Date(),
+        id: uuidv4(), role: "user", content: messageText, timestamp: new Date(),
       };
       const assistantMessageId = uuidv4();
       const assistantMessage: Message = {
@@ -207,10 +214,10 @@ export function useChat(
       }));
 
       if (debug?.isDebug) {
-        debug.startTurn(text);
+        debug.startTurn(messageText);
       }
 
-      apiSendMessage(state.conversationId, text, {
+      apiSendMessage(state.conversationId, messageText, {
         onDelta: (deltaText, agentId) => {
           const targetId = activeAssistantIdRef.current;
           if (!targetId) return;
