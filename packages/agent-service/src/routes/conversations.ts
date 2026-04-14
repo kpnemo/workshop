@@ -51,6 +51,7 @@ export function createConversationRouter(
         title: c.title,
         updatedAt: c.updatedAt.toISOString(),
         messageCount: c.messageCount,
+        summaryEnabled: c.summaryEnabled,
       }))
     );
   });
@@ -242,7 +243,13 @@ export function createConversationRouter(
           }
         }
 
-        const delegationOptions = { isMainAgent: curIsMain, isActiveDelegate: curIsDelegate };
+        if (currentConv.summaryEnabled) {
+          const summaryInstruction = curAgent.summaryInstruction
+            ?? "Provide a brief 2-3 sentence summary of this conversation so far, capturing the main topic and any key outcomes.";
+          systemPrompt += `\n\n[Summary]\nYou have an update_summary tool. Use it to maintain a running TL;DR of this conversation. Call it after meaningful exchanges. Follow this instruction: ${summaryInstruction}`;
+        }
+
+        const delegationOptions = { isMainAgent: curIsMain, isActiveDelegate: curIsDelegate, summaryEnabled: currentConv.summaryEnabled };
         const tools = toolService ? toolService.getToolsForAgent(curAgent, delegationOptions) : [];
         const loopMessages: Array<{ role: string; content: any }> = claudeMessages;
 
@@ -376,6 +383,17 @@ export function createConversationRouter(
               });
             }
 
+            // Emit summary SSE event when update_summary tool is called
+            if (toolUse.name === "update_summary") {
+              const parsedResult = (() => { try { return JSON.parse(result); } catch { return null; } })();
+              if (parsedResult?.success) {
+                writeSSE(res, "summary", { summary: parsedResult.summary });
+              }
+              if (debug) {
+                writeSSE(res, "debug_summary", { summary: parsedResult?.summary ?? result });
+              }
+            }
+
             toolResults.push({
               type: "tool_result",
               tool_use_id: toolUse.id,
@@ -470,6 +488,78 @@ export function createConversationRouter(
     }
   });
 
+  // POST /conversations/:id/summary - Manual summary refresh
+  router.post("/:id/summary", async (req: Request, res: Response) => {
+    if (!verifyOwnership(req.params.id, req.userId!)) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+
+    const conversation = db.getConversation(req.params.id);
+    if (!conversation) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+
+    if (conversation.messages.length === 0) {
+      res.json({ summary: null });
+      return;
+    }
+
+    const agent = agents.get(conversation.agentId);
+    const summaryInstruction = agent?.summaryInstruction
+      ?? "Provide a brief 2-3 sentence summary of this conversation so far, capturing the main topic and any key outcomes.";
+
+    const conversationText = conversation.messages
+      .filter((m) => m.role !== "system")
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n");
+
+    try {
+      const response = await getClient().messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 200,
+        messages: [
+          {
+            role: "user",
+            content: `${summaryInstruction}\n\nConversation:\n${conversationText}`,
+          },
+        ],
+      });
+
+      const summary = response.content[0].type === "text" ? response.content[0].text.trim() : null;
+      if (summary) {
+        db.setSummary(conversation.id, summary);
+      }
+      res.json({ summary });
+    } catch (err) {
+      console.error("[summary] Manual refresh failed:", err);
+      res.status(500).json({ error: "Summary generation failed" });
+    }
+  });
+
+  // PATCH /conversations/:id - Update conversation settings
+  router.patch("/:id", (req: Request, res: Response) => {
+    if (!verifyOwnership(req.params.id, req.userId!)) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+
+    const { summaryEnabled } = req.body;
+    if (typeof summaryEnabled === "boolean") {
+      db.setSummaryEnabled(req.params.id, summaryEnabled);
+    }
+
+    const conversation = db.getConversation(req.params.id)!;
+    res.json({
+      conversationId: conversation.id,
+      agentId: conversation.agentId,
+      title: conversation.title,
+      summary: conversation.summary,
+      summaryEnabled: conversation.summaryEnabled,
+    });
+  });
+
   // GET /conversations/:id - Get conversation history
   router.get("/:id", (req: Request, res: Response) => {
     if (!verifyOwnership(req.params.id, req.userId!)) {
@@ -484,6 +574,8 @@ export function createConversationRouter(
       activeAgent: conversation.activeAgent,
       title: conversation.title,
       createdAt: conversation.createdAt.toISOString(),
+      summary: conversation.summary,
+      summaryEnabled: conversation.summaryEnabled,
       messages: conversation.messages.map((m) => ({
         role: m.role,
         content: m.content,

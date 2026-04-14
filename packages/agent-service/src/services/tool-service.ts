@@ -8,10 +8,12 @@ import { createDelegateToTool } from "./tools/delegate-to.js";
 import { createHandBackTool } from "./tools/hand-back.js";
 import { createSearchFilesTool } from "./tools/search-files.js";
 import { createReadUserFileTool } from "./tools/read-user-file.js";
+import { createUpdateSummaryTool } from "./tools/update-summary.js";
 
 export interface DelegationOptions {
   isMainAgent?: boolean;
   isActiveDelegate?: boolean;
+  summaryEnabled?: boolean;
 }
 
 export class ToolService {
@@ -38,6 +40,7 @@ export class ToolService {
     this.register(createAssignAgentTool());
     this.register(createSearchFilesTool());
     this.register(createReadUserFileTool());
+    this.register(createUpdateSummaryTool());
   }
 
   getToolsForAgent(
@@ -53,6 +56,14 @@ export class ToolService {
         if (tool) {
           definitions.push(tool.definition);
         }
+      }
+    }
+
+    // Conditionally include update_summary when summary is enabled for this conversation
+    if (delegationOptions?.summaryEnabled) {
+      const summaryTool = this.tools.get("update_summary");
+      if (summaryTool && !definitions.some((d) => d.name === "update_summary")) {
+        definitions.push(summaryTool.definition);
       }
     }
 
