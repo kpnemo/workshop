@@ -218,6 +218,46 @@ describe("Database", () => {
     });
   });
 
+  describe("Summary support", () => {
+    it("setSummary stores and getConversation returns it", () => {
+      db.createUser("u-1", "s1@example.com", "pw");
+      db.createConversation("conv-s1", "support-bot", "u-1");
+      db.setSummary("conv-s1", "User asked about billing.");
+
+      const conv = db.getConversation("conv-s1")!;
+      expect(conv.summary).toBe("User asked about billing.");
+    });
+
+    it("summary defaults to null on new conversation", () => {
+      db.createUser("u-1", "s2@example.com", "pw");
+      db.createConversation("conv-s2", "support-bot", "u-1");
+
+      const conv = db.getConversation("conv-s2")!;
+      expect(conv.summary).toBeNull();
+      expect(conv.summaryEnabled).toBe(false);
+    });
+
+    it("setSummaryEnabled toggles the flag", () => {
+      db.createUser("u-1", "s3@example.com", "pw");
+      db.createConversation("conv-s3", "support-bot", "u-1");
+
+      db.setSummaryEnabled("conv-s3", true);
+      expect(db.getConversation("conv-s3")!.summaryEnabled).toBe(true);
+
+      db.setSummaryEnabled("conv-s3", false);
+      expect(db.getConversation("conv-s3")!.summaryEnabled).toBe(false);
+    });
+
+    it("listConversations includes summaryEnabled", () => {
+      db.createUser("u-1", "s4@example.com", "pw");
+      db.createConversation("conv-s4", "support-bot", "u-1");
+      db.setSummaryEnabled("conv-s4", true);
+
+      const list = db.listConversations("u-1");
+      expect(list[0].summaryEnabled).toBe(true);
+    });
+  });
+
   describe("File methods", () => {
     it("addFile inserts a file record and getFilesByUser returns it", () => {
       db.createUser("u-1", "test@example.com", "pw");

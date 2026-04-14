@@ -60,13 +60,13 @@ export class Database {
     this.db
       .prepare("INSERT INTO conversations (id, agent_id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, ?)")
       .run(id, agentId, userId, now, now);
-    return { id, agentId, activeAgent: null, title: null, messages: [], createdAt: new Date(now), updatedAt: new Date(now) };
+    return { id, agentId, activeAgent: null, title: null, messages: [], createdAt: new Date(now), updatedAt: new Date(now), summary: null, summaryEnabled: false };
   }
 
   getConversation(id: string): Conversation | undefined {
     const row = this.db
-      .prepare("SELECT id, agent_id, active_agent, title, created_at, updated_at FROM conversations WHERE id = ?")
-      .get(id) as { id: string; agent_id: string; active_agent: string | null; title: string | null; created_at: string; updated_at: string } | undefined;
+      .prepare("SELECT id, agent_id, active_agent, title, created_at, updated_at, summary, summary_enabled FROM conversations WHERE id = ?")
+      .get(id) as { id: string; agent_id: string; active_agent: string | null; title: string | null; created_at: string; updated_at: string; summary: string | null; summary_enabled: number } | undefined;
 
     if (!row) return undefined;
 
@@ -88,17 +88,19 @@ export class Database {
       })),
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
+      summary: row.summary ?? null,
+      summaryEnabled: row.summary_enabled === 1,
     };
   }
 
   listConversations(userId: string): ConversationSummary[] {
     const rows = this.db.prepare(`
-      SELECT c.id, c.agent_id, c.title, c.updated_at, COUNT(m.id) as message_count
+      SELECT c.id, c.agent_id, c.title, c.updated_at, COUNT(m.id) as message_count, c.summary_enabled
       FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
       WHERE c.user_id = ?
       GROUP BY c.id ORDER BY c.updated_at DESC
-    `).all(userId) as Array<{ id: string; agent_id: string; title: string | null; updated_at: string; message_count: number }>;
-    return rows.map((r) => ({ id: r.id, agentId: r.agent_id, title: r.title, updatedAt: new Date(r.updated_at), messageCount: r.message_count }));
+    `).all(userId) as Array<{ id: string; agent_id: string; title: string | null; updated_at: string; message_count: number; summary_enabled: number }>;
+    return rows.map((r) => ({ id: r.id, agentId: r.agent_id, title: r.title, updatedAt: new Date(r.updated_at), messageCount: r.message_count, summaryEnabled: r.summary_enabled === 1 }));
   }
 
   getConversationOwnerId(conversationId: string): string | undefined {
@@ -155,6 +157,14 @@ export class Database {
       .run(title, id);
   }
 
+  setSummary(id: string, summary: string): void {
+    this.db.prepare("UPDATE conversations SET summary = ? WHERE id = ?").run(summary, id);
+  }
+
+  setSummaryEnabled(id: string, enabled: boolean): void {
+    this.db.prepare("UPDATE conversations SET summary_enabled = ? WHERE id = ?").run(enabled ? 1 : 0, id);
+  }
+
   createUser(id: string, email: string, hashedPassword: string): { id: string; email: string; createdAt: Date } {
     const now = new Date().toISOString();
     this.db
@@ -192,6 +202,18 @@ export class Database {
     if (!msgColumns.some((c) => c.name === "delegation_meta")) {
       this.db.exec("ALTER TABLE messages ADD COLUMN delegation_meta TEXT");
       console.log("[database] Migration: added delegation_meta column to messages");
+    }
+
+    const convCols2 = this.db.prepare("PRAGMA table_info(conversations)").all() as Array<{ name: string }>;
+    if (!convCols2.some((c) => c.name === "summary")) {
+      this.db.exec("ALTER TABLE conversations ADD COLUMN summary TEXT");
+      console.log("[database] Migration: added summary column to conversations");
+    }
+    if (!convCols2.some((c) => c.name === "summary_enabled")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN summary_enabled INTEGER DEFAULT 0"
+      );
+      console.log("[database] Migration: added summary_enabled column to conversations");
     }
   }
 
