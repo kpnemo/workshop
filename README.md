@@ -78,6 +78,25 @@ You can edit agents directly in the markdown files, in the web UI's agent form, 
 - Tools are opt-in per agent via the `tools:` frontmatter field. When you edit an agent in the UI, an interactive tools picker shows what's available and what each tool does.
 - Tool execution is streamed to the frontend with `tool_start` / `tool_done` SSE events so the user sees a "🔧 using browse_url…" indicator in real time.
 
+### Debug mode
+- Toggle a debug panel from the chat header that shows the internal agent flow in real time: which agent is active, Claude's extended thinking, tool calls with inputs/outputs and timing, stream stats (tokens, stop reason, latency), delegation/assignment events, and summary updates.
+- Debug state persists per-user in localStorage so it survives page reloads.
+- Spec: [`docs/superpowers/specs/2026-04-09-debug-mode-design.md`](docs/superpowers/specs/2026-04-09-debug-mode-design.md)
+
+### File attachments
+- Users can attach document files (PDF, text, markdown, CSV, JSON, code) to chat messages from a per-user file library.
+- Uploaded files are stored on disk and indexed in a markdown catalog that agents can search.
+- Agents access files via `search_files` (browse the catalog) and `read_user_file` (read full content) tools.
+- Spec: [`docs/superpowers/specs/2026-04-14-file-attachments-design.md`](docs/superpowers/specs/2026-04-14-file-attachments-design.md)
+
+### Conversation summary panel
+- A real-time, per-conversation TL;DR panel that sticks to the top of the chat area.
+- Agents call the `update_summary` tool to maintain a rolling summary; users can also click a manual refresh button (powered by Claude Haiku).
+- Enable/disable per conversation via a toggle in the chat header — when disabled, the tool is fully removed from the agent.
+- Summary instruction is configurable per agent via the `summaryInstruction` frontmatter field.
+- Summaries persist in the database and survive page reloads.
+- Spec: [`docs/superpowers/specs/2026-04-14-conversation-summary-panel-design.md`](docs/superpowers/specs/2026-04-14-conversation-summary-panel-design.md)
+
 ### Authentication and persistence
 - JWT-based signup/login (bcrypt-hashed passwords).
 - Conversations are persisted in SQLite at `packages/data/conversations.db` (gitignored). Per-user ownership; users only see their own conversations.
@@ -88,6 +107,9 @@ You can edit agents directly in the markdown files, in the web UI's agent form, 
 | Tool | Available to | Description |
 |------|--------------|-------------|
 | `browse_url` | any agent that opts in | Fetch and extract text content from a web page using a headless Playwright browser. |
+| `search_files` | any agent that opts in | Search and browse the user's attached file library via the indexed catalog. |
+| `read_user_file` | any agent that opts in | Read the full content of a user-attached file by ID. |
+| `update_summary` | auto-injected when summary is enabled | Update the conversation summary panel. Called by the agent during responses. |
 | `delegate_to` | any agent with non-empty `delegates:` | Hand the conversation to a specialist agent for a specific task. |
 | `hand_back` | any agent currently acting as a delegate | Return control to the main agent with a brief summary of what was accomplished. |
 | `assign_agent` | router agent only | Permanently assign the conversation to a specialist (auto-mode). One-shot — cannot be called again on the same conversation. |
@@ -207,7 +229,7 @@ new-workshop/                        pnpm monorepo
 │   │   └── src/
 │   │       ├── routes/              auth, conversations, agents, copilot
 │   │       ├── services/            agent-loader, database, tool-service, copilot-service, guardrails
-│   │       └── services/tools/      browse-url, delegate-to, hand-back, assign-agent
+│   │       └── services/tools/      browse-url, delegate-to, hand-back, assign-agent, search-files, read-user-file, update-summary
 │   ├── web-client/                  React + Vite frontend on port 5173
 │   │   └── src/
 │   │       ├── components/          chat, sidebar, agent-form, copilot-panel, delegation-banner, ...
