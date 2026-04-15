@@ -92,6 +92,106 @@ You can edit agents directly in the markdown files, in the web UI's agent form, 
 | `hand_back` | any agent currently acting as a delegate | Return control to the main agent with a brief summary of what was accomplished. |
 | `assign_agent` | router agent only | Permanently assign the conversation to a specialist (auto-mode). One-shot — cannot be called again on the same conversation. |
 
+## Workshop Walkthrough
+
+Step-by-step reference for workshop participants. If you fall behind, use this to catch up.
+
+### Step 1: Project Setup
+
+After cloning the repo, open it in your terminal and start Claude Code:
+
+```bash
+cd new-workshop
+claude
+```
+
+Run the onboarding skill — it installs dependencies, configures `.env`, starts both services, and opens the app:
+
+```
+/workshop-onboarding
+```
+
+### Step 2: Sign Up and Log In
+
+Once the app is running at http://localhost:5173, you need to create an account:
+
+1. Click **Sign Up**
+2. Enter any email (e.g. `me@test.com`) — it's stored locally in SQLite, not sent anywhere
+3. Enter a password (minimum 8 characters)
+4. You're in — you'll see the chat UI with the agent selector
+
+### Step 3: Configure the Status Line
+
+Add a context window progress bar to your Claude Code status line:
+
+```
+/statusline add a context window progress bar, color coded: 0-50% green, 50-70% yellow, 70-100% red
+```
+
+You'll now see a live progress bar at the bottom of your Claude Code session showing how much of the context window is used.
+
+### Step 4: Install Plugins
+
+Install two plugins from the official marketplace:
+
+```
+/plugin
+```
+
+When prompted, select and install:
+- **serena** — semantic code analysis tools
+- **superpowers** — brainstorming, planning, TDD, and review workflows
+
+After both are installed, reload them:
+
+```
+/reload-plugins
+```
+
+### Step 5: Onboard Serena
+
+Let Serena analyze the codebase so its semantic tools work:
+
+```
+serena onboard
+```
+
+When prompted, activate the `new-workshop` project. If onboarding was already performed, it will tell you — that's fine.
+
+### Step 6: Brainstorm a Feature
+
+Now you're ready to build. Start the brainstorming flow with your feature idea:
+
+```
+/superpowers:brainstorming [describe what you want to build]
+```
+
+For example:
+```
+/superpowers:brainstorming I want to add a real-time summary panel for chats that can be enabled per conversation
+```
+
+The brainstorming skill will:
+1. Explore the codebase to understand what exists
+2. Offer a **visual companion** — say **yes** to this. It opens a browser tab where you'll see mockups, architecture diagrams, and layout options as you discuss the design
+3. Ask you clarifying questions one at a time (multiple choice when possible)
+4. Propose 2-3 approaches with trade-offs
+5. Present the design section by section for your approval
+6. Write a design spec and commit it
+7. Transition to implementation planning
+
+### Step 7: Follow the Flow
+
+From here, the superpowers skills guide you through:
+- **Writing a plan** — detailed implementation tasks with TDD steps
+- **Executing the plan** — subagent-driven development dispatches agents per task with code review
+- **Verification** — tests run, manual checks, debug panel validation
+- **Finishing** — merge and push
+
+Trust the process — answer the questions, review the designs, and let the agents do the implementation work.
+
+---
+
 ## Architecture
 
 ```
