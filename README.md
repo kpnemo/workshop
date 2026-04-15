@@ -56,6 +56,7 @@ You can edit agents directly in the markdown files, in the web UI's agent form, 
 - Chat with any agent via a web UI with a streaming SSE response pipeline.
 - Per-agent persona, model, temperature, max tokens, and avatar — defined in markdown frontmatter.
 - Topic guardrails: allow/block lists with a configurable refusal message; checked by a fast Haiku call before the main model runs.
+- Specs: [`docs/superpowers/specs/2026-03-25-agent-service-design.md`](docs/superpowers/specs/2026-03-25-agent-service-design.md), [`docs/superpowers/specs/2026-03-25-web-client-design.md`](docs/superpowers/specs/2026-03-25-web-client-design.md)
 
 ### ✨ Auto mode (router agent)
 - New conversations default to a special **router** agent (`agents/router.md`) that takes 1–3 turns to figure out what the user actually wants, then calls the `assign_agent` tool to permanently hand the conversation to the right specialist.
@@ -73,10 +74,12 @@ You can edit agents directly in the markdown files, in the web UI's agent form, 
 ### Multi-agent delegation
 - A "main" agent can list specialist agents in its `delegates:` field. At runtime it gets a `delegate_to` tool to hand the conversation to a specialist for a specific task, and the specialist gets a matching `hand_back` tool to return when done.
 - The conversation history is sliced so the specialist sees only the relevant exchange, not the entire prior context. A delegation banner is rendered in the chat for both directions.
+- Spec: [`docs/superpowers/specs/2026-04-06-multi-agent-delegation-design.md`](docs/superpowers/specs/2026-04-06-multi-agent-delegation-design.md)
 
 ### Per-agent tools
 - Tools are opt-in per agent via the `tools:` frontmatter field. When you edit an agent in the UI, an interactive tools picker shows what's available and what each tool does.
 - Tool execution is streamed to the frontend with `tool_start` / `tool_done` SSE events so the user sees a "🔧 using browse_url…" indicator in real time.
+- Spec: [`docs/superpowers/specs/2026-04-05-agent-tools-design.md`](docs/superpowers/specs/2026-04-05-agent-tools-design.md)
 
 ### Debug mode
 - Toggle a debug panel from the chat header that shows the internal agent flow in real time: which agent is active, Claude's extended thinking, tool calls with inputs/outputs and timing, stream stats (tokens, stop reason, latency), delegation/assignment events, and summary updates.
@@ -101,6 +104,7 @@ You can edit agents directly in the markdown files, in the web UI's agent form, 
 - JWT-based signup/login (bcrypt-hashed passwords).
 - Conversations are persisted in SQLite at `packages/data/conversations.db` (gitignored). Per-user ownership; users only see their own conversations.
 - The data directory is created on demand at startup, so a fresh clone just works without any manual `mkdir`.
+- Spec: [`docs/superpowers/specs/2026-03-31-auth-design.md`](docs/superpowers/specs/2026-03-31-auth-design.md)
 
 ### Available Tools
 
