@@ -5,6 +5,7 @@ import { useAuth } from "./hooks/use-auth.js";
 import LoginPage from "./pages/LoginPage.js";
 import AppShell from "./components/AppShell.js";
 import UsersPage from "./pages/UsersPage.js";
+import GroupsPage from "./pages/GroupsPage.js";
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/" element={<RequireAuth><AppShell /></RequireAuth>}>
           <Route index element={<Navigate to="/users" replace />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="groups" element={<GroupsPage />} />
           {/* Other pages mounted in later tasks */}
           <Route path="*" element={<div className="text-muted">Not found.</div>} />
         </Route>
