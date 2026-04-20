@@ -289,3 +289,64 @@ describe("/admin/groups", () => {
     expect(res.status).toBe(409);
   });
 });
+
+describe("/admin/profiles", () => {
+  let dbPath: string; let db: Database; let app: express.Express; let token: string;
+  beforeEach(async () => {
+    dbPath = path.join(os.tmpdir(), `test-admin-profiles-${Date.now()}-${Math.random()}.db`);
+    db = new Database(dbPath);
+    await ensureBootstrapAdmin(db, { email: "admin@x", password: "pw12345678" });
+    app = buildApp(db);
+    const r = await request(app).post("/admin/login").send({ email: "admin@x", password: "pw12345678" });
+    token = r.body.token;
+  });
+  afterEach(() => fs.existsSync(dbPath) && fs.unlinkSync(dbPath));
+  const auth = () => ({ Authorization: `Bearer ${token}` });
+
+  it("GET /admin/profiles lists with privilege key arrays", async () => {
+    const res = await request(app).get("/admin/profiles").set(auth());
+    expect(res.status).toBe(200);
+    const superadmin = res.body.find((p: { name: string }) => p.name === "superadmin");
+    expect(superadmin.privilegeKeys.sort()).toEqual(["manage:groups", "manage:profiles", "manage:users"]);
+  });
+
+  it("POST /admin/profiles 201", async () => {
+    const res = await request(app).post("/admin/profiles").set(auth()).send({ name: "reader" });
+    expect(res.status).toBe(201);
+  });
+
+  it("POST /admin/profiles 409 on dup", async () => {
+    const res = await request(app).post("/admin/profiles").set(auth()).send({ name: "superadmin" });
+    expect(res.status).toBe(409);
+  });
+
+  it("PATCH /admin/profiles/:id renames", async () => {
+    const p = (await request(app).post("/admin/profiles").set(auth()).send({ name: "reader" })).body.profile;
+    const res = await request(app).patch(`/admin/profiles/${p.id}`).set(auth()).send({ name: "viewer" });
+    expect(res.status).toBe(200);
+  });
+
+  it("DELETE /admin/profiles/:id self-lockout 409", async () => {
+    const superadmin = db.listProfiles().find((p) => p.name === "superadmin")!;
+    const res = await request(app).delete(`/admin/profiles/${superadmin.id}`).set(auth());
+    expect(res.status).toBe(409);
+  });
+
+  it("PUT /admin/profiles/:id/privileges accepts only catalog keys", async () => {
+    const p = (await request(app).post("/admin/profiles").set(auth()).send({ name: "reader" })).body.profile;
+    const good = await request(app).put(`/admin/profiles/${p.id}/privileges`).set(auth())
+      .send({ keys: ["manage:users"] });
+    expect(good.status).toBe(200);
+
+    const bad = await request(app).put(`/admin/profiles/${p.id}/privileges`).set(auth())
+      .send({ keys: ["manage:nope"] });
+    expect(bad.status).toBe(400);
+  });
+
+  it("PUT /admin/profiles/:id/privileges self-lockout 409 when stripping last admin-granting profile", async () => {
+    const superadmin = db.listProfiles().find((p) => p.name === "superadmin")!;
+    const res = await request(app).put(`/admin/profiles/${superadmin.id}/privileges`).set(auth())
+      .send({ keys: [] });
+    expect(res.status).toBe(409);
+  });
+});

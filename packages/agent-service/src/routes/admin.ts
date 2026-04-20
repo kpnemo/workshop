@@ -228,7 +228,79 @@ export function createAdminRouter(db: Database, jwtSecret: string): Router {
     res.status(200).json({ profileIds });
   });
 
-  // /admin/profiles is added in Task 12.
+  // --- /admin/profiles ---
+  router.get("/profiles", adminAuthMiddleware(db, jwtSecret, "manage:profiles"), (_req, res) => {
+    const profiles = db.listProfiles().map((p) => ({
+      ...p,
+      privilegeKeys: db.listProfilePrivileges(p.id),
+    }));
+    res.status(200).json(profiles);
+  });
+
+  router.post("/profiles", adminAuthMiddleware(db, jwtSecret, "manage:profiles"), async (req, res) => {
+    const { name } = req.body ?? {};
+    if (typeof name !== "string" || !name.trim()) { res.status(400).json({ error: "Name required", field: "name" }); return; }
+    try {
+      const id = uuidv4();
+      const profile = db.createProfile(id, name);
+      res.status(201).json({ profile });
+    } catch (err) {
+      if (String(err).includes("UNIQUE")) { res.status(409).json({ error: "Name already exists", field: "name" }); return; }
+      throw err;
+    }
+  });
+
+  router.patch("/profiles/:id", adminAuthMiddleware(db, jwtSecret, "manage:profiles"), (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body ?? {};
+    if (!db.getProfile(id)) { res.status(404).json({ error: "Not found" }); return; }
+    if (typeof name !== "string" || !name.trim()) { res.status(400).json({ error: "Name required", field: "name" }); return; }
+    try {
+      db.renameProfile(id, name);
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      if (String(err).includes("UNIQUE")) { res.status(409).json({ error: "Name already exists", field: "name" }); return; }
+      throw err;
+    }
+  });
+
+  router.delete("/profiles/:id", adminAuthMiddleware(db, jwtSecret, "manage:profiles"), (req, res) => {
+    const { id } = req.params;
+    if (!db.getProfile(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+    const beforeKeys = db.listProfilePrivileges(id);
+    db.setProfilePrivileges(id, []);
+    const stillOK = [...ADMIN_PRIVILEGE_KEYS].every((k) => db.countUsersWithPrivilege(k) >= 1);
+    if (!stillOK) {
+      db.setProfilePrivileges(id, beforeKeys);
+      res.status(409).json({ error: "Cannot delete last admin-granting profile" }); return;
+    }
+    db.deleteProfile(id);
+    res.status(204).end();
+  });
+
+  router.put("/profiles/:id/privileges", adminAuthMiddleware(db, jwtSecret, "manage:profiles"), (req, res) => {
+    const { id } = req.params;
+    const { keys } = req.body ?? {};
+    if (!Array.isArray(keys) || keys.some((k) => typeof k !== "string")) {
+      res.status(400).json({ error: "keys must be string[]" }); return;
+    }
+    if (!db.getProfile(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+    const before = db.listProfilePrivileges(id);
+    try {
+      db.setProfilePrivileges(id, keys);
+    } catch (err) {
+      if (String(err).includes("unknown privilege")) { res.status(400).json({ error: String(err) }); return; }
+      throw err;
+    }
+    const stillOK = [...ADMIN_PRIVILEGE_KEYS].every((k) => db.countUsersWithPrivilege(k) >= 1);
+    if (!stillOK) {
+      db.setProfilePrivileges(id, before);
+      res.status(409).json({ error: "Cannot remove last admin privilege" }); return;
+    }
+    res.status(200).json({ keys });
+  });
 
   return router;
 }
