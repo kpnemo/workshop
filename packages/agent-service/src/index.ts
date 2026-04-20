@@ -19,6 +19,7 @@ import { ToolService } from "./services/tool-service.js";
 import { createFilesRouter } from "./routes/files.js";
 import { FileService } from "./services/file-service.js";
 import { ensureBootstrapAdmin } from "./services/admin-bootstrap.js";
+import { createAdminRouter } from "./routes/admin.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const AGENTS_DIR =
@@ -81,6 +82,7 @@ app.use("/agents", createAgentsRouter(agents, AGENTS_DIR, toolService));
 app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService, fileService));
 app.use("/files", authMiddleware(JWT_SECRET), createFilesRouter(db, fileService));
 app.use("/copilot", authMiddleware(JWT_SECRET), createCopilotRouter(agents, AGENTS_DIR, toolService.getAvailableTools()));
+app.use("/admin", createAdminRouter(db, JWT_SECRET));
 
 // Start server
 app.listen(PORT, () => {
