@@ -218,3 +218,74 @@ describe("/admin/users", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("/admin/groups", () => {
+  let dbPath: string; let db: Database; let app: express.Express; let token: string;
+  beforeEach(async () => {
+    dbPath = path.join(os.tmpdir(), `test-admin-groups-${Date.now()}-${Math.random()}.db`);
+    db = new Database(dbPath);
+    await ensureBootstrapAdmin(db, { email: "admin@x", password: "pw12345678" });
+    app = buildApp(db);
+    const r = await request(app).post("/admin/login").send({ email: "admin@x", password: "pw12345678" });
+    token = r.body.token;
+  });
+  afterEach(() => fs.existsSync(dbPath) && fs.unlinkSync(dbPath));
+  const auth = () => ({ Authorization: `Bearer ${token}` });
+
+  it("GET /admin/groups lists groups", async () => {
+    const res = await request(app).get("/admin/groups").set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.map((g: {name: string}) => g.name)).toContain("Admins");
+  });
+
+  it("POST/PATCH/DELETE groups round-trip", async () => {
+    const created = await request(app).post("/admin/groups").set(auth()).send({ name: "Editors" });
+    expect(created.status).toBe(201);
+    const id = created.body.group.id;
+
+    const renamed = await request(app).patch(`/admin/groups/${id}`).set(auth()).send({ name: "Writers" });
+    expect(renamed.status).toBe(200);
+
+    const del = await request(app).delete(`/admin/groups/${id}`).set(auth());
+    expect(del.status).toBe(204);
+  });
+
+  it("POST /admin/groups 409 on duplicate name", async () => {
+    const res = await request(app).post("/admin/groups").set(auth()).send({ name: "Admins" });
+    expect(res.status).toBe(409);
+  });
+
+  it("PUT /admin/groups/:id/members replaces transactionally", async () => {
+    const adminGroup = db.listGroups().find((g) => g.name === "Admins")!;
+    const g = await request(app).post("/admin/groups").set(auth()).send({ name: "Editors" });
+    const uid = (await request(app).post("/admin/users").set(auth()).send({ email: "u@x", password: "pw12345678" })).body.user.id;
+    const res = await request(app).put(`/admin/groups/${g.body.group.id}/members`).set(auth()).send({ userIds: [uid] });
+    expect(res.status).toBe(200);
+    expect(db.listGroupMemberIds(g.body.group.id)).toEqual([uid]);
+    // Admins membership unaffected
+    expect(db.listGroupMemberIds(adminGroup.id).length).toBe(1);
+  });
+
+  it("PUT /admin/groups/:id/profiles replaces transactionally", async () => {
+    const adminGroup = db.listGroups().find((g) => g.name === "Admins")!;
+    const p = db.createProfile(uuidv4(), "reader");
+    db.setProfilePrivileges(p.id, []);
+    const res = await request(app).put(`/admin/groups/${adminGroup.id}/profiles`).set(auth())
+      .send({ profileIds: [db.listProfiles().find((pr) => pr.name === "superadmin")!.id, p.id] });
+    expect(res.status).toBe(200);
+    expect(db.listGroupProfileIds(adminGroup.id).sort())
+      .toEqual([db.listProfiles().find((pr) => pr.name === "superadmin")!.id, p.id].sort());
+  });
+
+  it("PUT /admin/groups/:id/members self-lockout 409 when kicking out last admin", async () => {
+    const admins = db.listGroups().find((g) => g.name === "Admins")!;
+    const res = await request(app).put(`/admin/groups/${admins.id}/members`).set(auth()).send({ userIds: [] });
+    expect(res.status).toBe(409);
+  });
+
+  it("DELETE /admin/groups/:id self-lockout 409", async () => {
+    const admins = db.listGroups().find((g) => g.name === "Admins")!;
+    const res = await request(app).delete(`/admin/groups/${admins.id}`).set(auth());
+    expect(res.status).toBe(409);
+  });
+});

@@ -139,7 +139,96 @@ export function createAdminRouter(db: Database, jwtSecret: string): Router {
     res.status(200).json({ groupIds });
   });
 
-  // /admin/groups, /admin/profiles are added in Tasks 11–12.
+  // --- /admin/groups ---
+  router.get("/groups", adminAuthMiddleware(db, jwtSecret, "manage:groups"), (_req, res) => {
+    res.status(200).json(db.listGroups());
+  });
+
+  router.post("/groups", adminAuthMiddleware(db, jwtSecret, "manage:groups"), async (req, res) => {
+    const { name } = req.body ?? {};
+    if (typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ error: "Name required", field: "name" }); return;
+    }
+    try {
+      const id = uuidv4();
+      const group = db.createGroup(id, name);
+      res.status(201).json({ group });
+    } catch (err) {
+      if (String(err).includes("UNIQUE")) { res.status(409).json({ error: "Name already exists", field: "name" }); return; }
+      throw err;
+    }
+  });
+
+  router.patch("/groups/:id", adminAuthMiddleware(db, jwtSecret, "manage:groups"), (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body ?? {};
+    if (!db.getGroup(id)) { res.status(404).json({ error: "Not found" }); return; }
+    if (typeof name !== "string" || !name.trim()) { res.status(400).json({ error: "Name required", field: "name" }); return; }
+    try {
+      db.renameGroup(id, name);
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      if (String(err).includes("UNIQUE")) { res.status(409).json({ error: "Name already exists", field: "name" }); return; }
+      throw err;
+    }
+  });
+
+  router.delete("/groups/:id", adminAuthMiddleware(db, jwtSecret, "manage:groups"), (req, res) => {
+    const { id } = req.params;
+    if (!db.getGroup(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Simulate-then-rollback: blank memberships + profile links, verify invariants.
+    const beforeMembers = db.listGroupMemberIds(id);
+    const beforeProfiles = db.listGroupProfileIds(id);
+    db.setGroupMembers(id, []);
+    db.setGroupProfiles(id, []);
+    const stillOK = [...ADMIN_PRIVILEGE_KEYS].every((k) => db.countUsersWithPrivilege(k) >= 1);
+    if (!stillOK) {
+      db.setGroupMembers(id, beforeMembers);
+      db.setGroupProfiles(id, beforeProfiles);
+      res.status(409).json({ error: "Cannot delete last admin-granting group" }); return;
+    }
+    db.deleteGroup(id);
+    res.status(204).end();
+  });
+
+  router.put("/groups/:id/members", adminAuthMiddleware(db, jwtSecret, "manage:groups"), (req, res) => {
+    const { id } = req.params;
+    const { userIds } = req.body ?? {};
+    if (!Array.isArray(userIds) || userIds.some((u) => typeof u !== "string")) {
+      res.status(400).json({ error: "userIds must be string[]" }); return;
+    }
+    if (!db.getGroup(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+    const before = db.listGroupMemberIds(id);
+    db.setGroupMembers(id, userIds);
+    const stillOK = [...ADMIN_PRIVILEGE_KEYS].every((k) => db.countUsersWithPrivilege(k) >= 1);
+    if (!stillOK) {
+      db.setGroupMembers(id, before);
+      res.status(409).json({ error: "Cannot remove last admin" }); return;
+    }
+    res.status(200).json({ userIds });
+  });
+
+  router.put("/groups/:id/profiles", adminAuthMiddleware(db, jwtSecret, "manage:groups"), (req, res) => {
+    const { id } = req.params;
+    const { profileIds } = req.body ?? {};
+    if (!Array.isArray(profileIds) || profileIds.some((p) => typeof p !== "string")) {
+      res.status(400).json({ error: "profileIds must be string[]" }); return;
+    }
+    if (!db.getGroup(id)) { res.status(404).json({ error: "Not found" }); return; }
+
+    const before = db.listGroupProfileIds(id);
+    db.setGroupProfiles(id, profileIds);
+    const stillOK = [...ADMIN_PRIVILEGE_KEYS].every((k) => db.countUsersWithPrivilege(k) >= 1);
+    if (!stillOK) {
+      db.setGroupProfiles(id, before);
+      res.status(409).json({ error: "Cannot remove last admin-granting profile" }); return;
+    }
+    res.status(200).json({ profileIds });
+  });
+
+  // /admin/profiles is added in Task 12.
 
   return router;
 }
