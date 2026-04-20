@@ -18,6 +18,7 @@ import { authMiddleware } from "./middleware/auth.js";
 import { ToolService } from "./services/tool-service.js";
 import { createFilesRouter } from "./routes/files.js";
 import { FileService } from "./services/file-service.js";
+import { ensureBootstrapAdmin } from "./services/admin-bootstrap.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const AGENTS_DIR =
@@ -57,6 +58,11 @@ console.log(`[startup] Loaded ${agents.size} agent(s): ${[...agents.keys()].join
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 console.log(`[startup] Database opened at ${DB_PATH}`);
+
+await ensureBootstrapAdmin(db, {
+  email: process.env.ADMIN_EMAIL,
+  password: process.env.ADMIN_PASSWORD,
+});
 
 // Tool service
 const toolService = new ToolService();
