@@ -4,7 +4,7 @@ export interface AdminUser {
   createdAt: string;
   groupIds: string[];
 }
-export interface Group { id: string; name: string; createdAt: string; }
+export interface Group { id: string; name: string; createdAt: string; profileIds?: string[]; memberIds?: string[]; }
 export interface ProfileWithKeys { id: string; name: string; createdAt: string; privilegeKeys: string[]; }
 export interface PrivilegeEntry { key: string; label: string; description: string; profileCount: number; }
 export interface Me { user: { id: string; email: string }; privileges: string[]; }

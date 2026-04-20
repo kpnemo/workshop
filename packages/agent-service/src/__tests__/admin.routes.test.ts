@@ -236,6 +236,9 @@ describe("/admin/groups", () => {
     const res = await request(app).get("/admin/groups").set(auth());
     expect(res.status).toBe(200);
     expect(res.body.map((g: {name: string}) => g.name)).toContain("Admins");
+    const admins = res.body.find((g: { name: string }) => g.name === "Admins");
+    expect(admins.memberIds.length).toBeGreaterThanOrEqual(1);
+    expect(admins.profileIds.length).toBe(1);
   });
 
   it("POST/PATCH/DELETE groups round-trip", async () => {

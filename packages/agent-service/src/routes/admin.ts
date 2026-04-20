@@ -141,7 +141,12 @@ export function createAdminRouter(db: Database, jwtSecret: string): Router {
 
   // --- /admin/groups ---
   router.get("/groups", adminAuthMiddleware(db, jwtSecret, "manage:groups"), (_req, res) => {
-    res.status(200).json(db.listGroups());
+    const groups = db.listGroups().map((g) => ({
+      ...g,
+      profileIds: db.listGroupProfileIds(g.id),
+      memberIds: db.listGroupMemberIds(g.id),
+    }));
+    res.status(200).json(groups);
   });
 
   router.post("/groups", adminAuthMiddleware(db, jwtSecret, "manage:groups"), async (req, res) => {

@@ -49,12 +49,8 @@ export default function GroupsPage() {
   function openEdit(g: Group) {
     setEditing(g);
     setEditName(g.name);
-    setEditMembers(users.filter((u) => u.groupIds.includes(g.id)).map((u) => u.id));
-    // Current profile IDs are derived from profiles list intersected with this group.
-    // Because /admin/profiles doesn't return which groups use each profile, we start
-    // with an empty selection and let the admin set explicitly. Users can see the
-    // current set via the Groups column summary after saving.
-    setEditProfileIds([]);
+    setEditMembers(g.memberIds ?? users.filter((u) => u.groupIds.includes(g.id)).map((u) => u.id));
+    setEditProfileIds(g.profileIds ?? []);
   }
 
   async function onSaveEdit() {
