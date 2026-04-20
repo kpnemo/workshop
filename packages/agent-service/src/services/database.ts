@@ -1,5 +1,6 @@
 import BetterSqlite3 from "better-sqlite3";
 import type { Conversation, ConversationSummary, FileRecord, Message } from "../types.js";
+import { PRIVILEGE_KEYS } from "./privileges.js";
 
 export class Database {
   private db: BetterSqlite3.Database;
@@ -359,6 +360,135 @@ export class Database {
 
   deleteProfile(id: string): void {
     this.db.prepare("DELETE FROM profiles WHERE id = ?").run(id);
+  }
+
+  listAdminUsers(): import("../types.js").AdminUserSummary[] {
+    const users = this.db
+      .prepare("SELECT id, email, created_at FROM users ORDER BY email")
+      .all() as Array<{ id: string; email: string; created_at: string }>;
+    const memberships = this.db
+      .prepare("SELECT user_id, group_id FROM user_groups")
+      .all() as Array<{ user_id: string; group_id: string }>;
+    const byUser = new Map<string, string[]>();
+    for (const m of memberships) {
+      const arr = byUser.get(m.user_id) ?? [];
+      arr.push(m.group_id);
+      byUser.set(m.user_id, arr);
+    }
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      createdAt: u.created_at,
+      groupIds: byUser.get(u.id) ?? [],
+    }));
+  }
+
+  updateUserEmail(id: string, email: string): void {
+    this.db.prepare("UPDATE users SET email = ? WHERE id = ?").run(email.trim().toLowerCase(), id);
+  }
+
+  updateUserPassword(id: string, hashed: string): void {
+    this.db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashed, id);
+  }
+
+  deleteUser(id: string): void {
+    this.db.prepare("DELETE FROM users WHERE id = ?").run(id);
+  }
+
+  setUserGroups(userId: string, groupIds: string[]): void {
+    const deleteStmt = this.db.prepare("DELETE FROM user_groups WHERE user_id = ?");
+    const insertStmt = this.db.prepare("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)");
+    this.db.transaction(() => {
+      deleteStmt.run(userId);
+      for (const gid of groupIds) insertStmt.run(userId, gid);
+    })();
+  }
+
+  listUserGroupIds(userId: string): string[] {
+    const rows = this.db
+      .prepare("SELECT group_id FROM user_groups WHERE user_id = ?")
+      .all(userId) as Array<{ group_id: string }>;
+    return rows.map((r) => r.group_id);
+  }
+
+  setGroupMembers(groupId: string, userIds: string[]): void {
+    const deleteStmt = this.db.prepare("DELETE FROM user_groups WHERE group_id = ?");
+    const insertStmt = this.db.prepare("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)");
+    this.db.transaction(() => {
+      deleteStmt.run(groupId);
+      for (const uid of userIds) insertStmt.run(uid, groupId);
+    })();
+  }
+
+  listGroupMemberIds(groupId: string): string[] {
+    const rows = this.db
+      .prepare("SELECT user_id FROM user_groups WHERE group_id = ?")
+      .all(groupId) as Array<{ user_id: string }>;
+    return rows.map((r) => r.user_id);
+  }
+
+  setGroupProfiles(groupId: string, profileIds: string[]): void {
+    const deleteStmt = this.db.prepare("DELETE FROM group_profiles WHERE group_id = ?");
+    const insertStmt = this.db.prepare("INSERT INTO group_profiles (group_id, profile_id) VALUES (?, ?)");
+    this.db.transaction(() => {
+      deleteStmt.run(groupId);
+      for (const pid of profileIds) insertStmt.run(groupId, pid);
+    })();
+  }
+
+  listGroupProfileIds(groupId: string): string[] {
+    const rows = this.db
+      .prepare("SELECT profile_id FROM group_profiles WHERE group_id = ?")
+      .all(groupId) as Array<{ profile_id: string }>;
+    return rows.map((r) => r.profile_id);
+  }
+
+  setProfilePrivileges(profileId: string, keys: string[]): void {
+    for (const k of keys) {
+      if (!PRIVILEGE_KEYS.has(k)) throw new Error(`unknown privilege: ${k}`);
+    }
+    const deleteStmt = this.db.prepare("DELETE FROM profile_privileges WHERE profile_id = ?");
+    const insertStmt = this.db.prepare("INSERT INTO profile_privileges (profile_id, privilege_key) VALUES (?, ?)");
+    this.db.transaction(() => {
+      deleteStmt.run(profileId);
+      for (const k of keys) insertStmt.run(profileId, k);
+    })();
+  }
+
+  listProfilePrivileges(profileId: string): string[] {
+    const rows = this.db
+      .prepare("SELECT privilege_key FROM profile_privileges WHERE profile_id = ?")
+      .all(profileId) as Array<{ privilege_key: string }>;
+    return rows.map((r) => r.privilege_key);
+  }
+
+  getEffectivePrivileges(userId: string): Set<string> {
+    const rows = this.db.prepare(`
+      SELECT DISTINCT pp.privilege_key
+        FROM user_groups ug
+        JOIN group_profiles gp  ON gp.group_id = ug.group_id
+        JOIN profile_privileges pp ON pp.profile_id = gp.profile_id
+       WHERE ug.user_id = ?
+    `).all(userId) as Array<{ privilege_key: string }>;
+    return new Set(rows.map((r) => r.privilege_key));
+  }
+
+  countUsersWithPrivilege(key: string): number {
+    const row = this.db.prepare(`
+      SELECT COUNT(DISTINCT ug.user_id) AS c
+        FROM user_groups ug
+        JOIN group_profiles gp ON gp.group_id = ug.group_id
+        JOIN profile_privileges pp ON pp.profile_id = gp.profile_id
+       WHERE pp.privilege_key = ?
+    `).get(key) as { c: number };
+    return row.c;
+  }
+
+  countProfilesWithPrivilege(key: string): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS c FROM profile_privileges WHERE privilege_key = ?")
+      .get(key) as { c: number };
+    return row.c;
   }
 
   close(): void {

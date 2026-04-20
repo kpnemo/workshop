@@ -83,4 +83,80 @@ describe("Database admin schema", () => {
     db.createProfile("p1", "reader");
     expect(() => db.createProfile("p2", "reader")).toThrow();
   });
+
+  function seedPeople() {
+    const raw = (db as unknown as { db: import("better-sqlite3").Database }).db;
+    raw.prepare("INSERT INTO users (id, email, password, created_at) VALUES ('u1','a@x','h',datetime('now'))").run();
+    raw.prepare("INSERT INTO users (id, email, password, created_at) VALUES ('u2','b@x','h',datetime('now'))").run();
+    db.createGroup("g1", "Admins");
+    db.createGroup("g2", "Editors");
+    db.createProfile("p1", "superadmin");
+    db.createProfile("p2", "writer");
+  }
+
+  it("setUserGroups replaces membership transactionally", () => {
+    seedPeople();
+    db.setUserGroups("u1", ["g1", "g2"]);
+    expect(db.listUserGroupIds("u1").sort()).toEqual(["g1", "g2"]);
+    db.setUserGroups("u1", ["g2"]);
+    expect(db.listUserGroupIds("u1")).toEqual(["g2"]);
+    db.setUserGroups("u1", []);
+    expect(db.listUserGroupIds("u1")).toEqual([]);
+  });
+
+  it("setGroupMembers replaces members transactionally", () => {
+    seedPeople();
+    db.setGroupMembers("g1", ["u1", "u2"]);
+    expect(db.listGroupMemberIds("g1").sort()).toEqual(["u1", "u2"]);
+    db.setGroupMembers("g1", ["u2"]);
+    expect(db.listGroupMemberIds("g1")).toEqual(["u2"]);
+  });
+
+  it("setGroupProfiles replaces profiles on a group", () => {
+    seedPeople();
+    db.setGroupProfiles("g1", ["p1", "p2"]);
+    expect(db.listGroupProfileIds("g1").sort()).toEqual(["p1", "p2"]);
+    db.setGroupProfiles("g1", ["p1"]);
+    expect(db.listGroupProfileIds("g1")).toEqual(["p1"]);
+  });
+
+  it("setProfilePrivileges replaces privilege keys, rejects unknown", () => {
+    seedPeople();
+    db.setProfilePrivileges("p1", ["manage:users", "manage:groups"]);
+    expect(db.listProfilePrivileges("p1").sort()).toEqual(["manage:groups", "manage:users"]);
+    expect(() => db.setProfilePrivileges("p1", ["manage:nope"])).toThrow(/unknown privilege/i);
+  });
+
+  it("getEffectivePrivileges unions across groups and profiles", () => {
+    seedPeople();
+    db.setProfilePrivileges("p1", ["manage:users"]);
+    db.setProfilePrivileges("p2", ["manage:groups", "manage:profiles"]);
+    db.setGroupProfiles("g1", ["p1"]);
+    db.setGroupProfiles("g2", ["p2"]);
+    db.setUserGroups("u1", ["g1", "g2"]);
+
+    const privs = db.getEffectivePrivileges("u1");
+    expect(privs).toEqual(new Set(["manage:users", "manage:groups", "manage:profiles"]));
+  });
+
+  it("countUsersWithPrivilege returns distinct user count holding a key", () => {
+    seedPeople();
+    db.setProfilePrivileges("p1", ["manage:users"]);
+    db.setGroupProfiles("g1", ["p1"]);
+    db.setUserGroups("u1", ["g1"]);
+    db.setUserGroups("u2", ["g1"]);
+
+    expect(db.countUsersWithPrivilege("manage:users")).toBe(2);
+    expect(db.countUsersWithPrivilege("manage:groups")).toBe(0);
+  });
+
+  it("listAdminUsers includes group ids per user", () => {
+    seedPeople();
+    db.setUserGroups("u1", ["g1"]);
+    const list = db.listAdminUsers();
+    expect(list).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "u1", email: "a@x", groupIds: ["g1"] }),
+      expect.objectContaining({ id: "u2", email: "b@x", groupIds: [] }),
+    ]));
+  });
 });
