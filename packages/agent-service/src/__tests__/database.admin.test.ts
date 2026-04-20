@@ -40,4 +40,26 @@ describe("Database admin schema", () => {
     const rows = raw.prepare("SELECT * FROM user_groups").all();
     expect(rows.length).toBe(0);
   });
+
+  it("groups CRUD: create, list, rename, delete", () => {
+    db.createGroup("g1", "Admins");
+    db.createGroup("g2", "Editors");
+
+    let list = db.listGroups();
+    expect(list.map((g) => g.name).sort()).toEqual(["Admins", "Editors"]);
+
+    db.renameGroup("g2", "Writers");
+    list = db.listGroups();
+    expect(list.find((g) => g.id === "g2")!.name).toBe("Writers");
+
+    db.deleteGroup("g1");
+    list = db.listGroups();
+    expect(list.length).toBe(1);
+    expect(list[0].id).toBe("g2");
+  });
+
+  it("createGroup rejects duplicate name (unique constraint)", () => {
+    db.createGroup("g1", "Admins");
+    expect(() => db.createGroup("g2", "Admins")).toThrow();
+  });
 });

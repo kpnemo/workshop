@@ -299,6 +299,38 @@ export class Database {
     return result.changes > 0;
   }
 
+  createGroup(id: string, name: string): import("../types.js").Group {
+    const now = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO groups (id, name, created_at) VALUES (?, ?, ?)")
+      .run(id, name.trim(), now);
+    return { id, name: name.trim(), createdAt: now };
+  }
+
+  listGroups(): import("../types.js").Group[] {
+    const rows = this.db
+      .prepare("SELECT id, name, created_at FROM groups ORDER BY name")
+      .all() as Array<{ id: string; name: string; created_at: string }>;
+    return rows.map((r) => ({ id: r.id, name: r.name, createdAt: r.created_at }));
+  }
+
+  getGroup(id: string): import("../types.js").Group | undefined {
+    const row = this.db
+      .prepare("SELECT id, name, created_at FROM groups WHERE id = ?")
+      .get(id) as { id: string; name: string; created_at: string } | undefined;
+    return row && { id: row.id, name: row.name, createdAt: row.created_at };
+  }
+
+  renameGroup(id: string, name: string): void {
+    this.db
+      .prepare("UPDATE groups SET name = ? WHERE id = ?")
+      .run(name.trim(), id);
+  }
+
+  deleteGroup(id: string): void {
+    this.db.prepare("DELETE FROM groups WHERE id = ?").run(id);
+  }
+
   close(): void {
     this.db.close();
   }
