@@ -2,8 +2,9 @@
   "name": "new-workshop",
   "private": true,
   "scripts": {
-    "start": "concurrently --names \"be,fe\" --prefix-colors \"blue,green\" --kill-others-on-fail \"pnpm --filter @new-workshop/agent-service dev\" \"pnpm --filter @new-workshop/web-client dev\"",
-    "stop": "echo 'Press Ctrl-C in the terminal running `pnpm start` to stop both services.'"
+    "start": "concurrently --names \"be,fe,admin\" --prefix-colors \"blue,green,magenta\" --kill-others-on-fail \"pnpm --filter @new-workshop/agent-service dev\" \"pnpm --filter @new-workshop/web-client dev\" \"pnpm --filter @new-workshop/admin-panel dev\"",
+    "stop": "echo 'Press Ctrl-C in the terminal running `pnpm start` to stop all services.'",
+    "test": "pnpm -r test"
   },
   "engines": {
     "node": ">=20"
