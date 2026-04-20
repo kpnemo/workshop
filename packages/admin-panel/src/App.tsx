@@ -7,6 +7,7 @@ import AppShell from "./components/AppShell.js";
 import UsersPage from "./pages/UsersPage.js";
 import GroupsPage from "./pages/GroupsPage.js";
 import ProfilesPage from "./pages/ProfilesPage.js";
+import PrivilegesPage from "./pages/PrivilegesPage.js";
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="groups" element={<GroupsPage />} />
           <Route path="profiles" element={<ProfilesPage />} />
+          <Route path="privileges" element={<PrivilegesPage />} />
           {/* Other pages mounted in later tasks */}
           <Route path="*" element={<div className="text-muted">Not found.</div>} />
         </Route>
