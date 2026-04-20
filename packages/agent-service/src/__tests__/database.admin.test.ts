@@ -62,4 +62,25 @@ describe("Database admin schema", () => {
     db.createGroup("g1", "Admins");
     expect(() => db.createGroup("g2", "Admins")).toThrow();
   });
+
+  it("profiles CRUD: create, list, rename, delete", () => {
+    db.createProfile("p1", "superadmin");
+    db.createProfile("p2", "viewer");
+
+    let list = db.listProfiles();
+    expect(list.map((p) => p.name).sort()).toEqual(["superadmin", "viewer"]);
+
+    db.renameProfile("p2", "reader");
+    list = db.listProfiles();
+    expect(list.find((p) => p.id === "p2")!.name).toBe("reader");
+
+    db.deleteProfile("p1");
+    list = db.listProfiles();
+    expect(list.length).toBe(1);
+  });
+
+  it("createProfile rejects duplicate name", () => {
+    db.createProfile("p1", "reader");
+    expect(() => db.createProfile("p2", "reader")).toThrow();
+  });
 });

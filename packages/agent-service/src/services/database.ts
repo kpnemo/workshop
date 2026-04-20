@@ -331,6 +331,36 @@ export class Database {
     this.db.prepare("DELETE FROM groups WHERE id = ?").run(id);
   }
 
+  createProfile(id: string, name: string): import("../types.js").Profile {
+    const now = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO profiles (id, name, created_at) VALUES (?, ?, ?)")
+      .run(id, name.trim(), now);
+    return { id, name: name.trim(), createdAt: now };
+  }
+
+  listProfiles(): import("../types.js").Profile[] {
+    const rows = this.db
+      .prepare("SELECT id, name, created_at FROM profiles ORDER BY name")
+      .all() as Array<{ id: string; name: string; created_at: string }>;
+    return rows.map((r) => ({ id: r.id, name: r.name, createdAt: r.created_at }));
+  }
+
+  getProfile(id: string): import("../types.js").Profile | undefined {
+    const row = this.db
+      .prepare("SELECT id, name, created_at FROM profiles WHERE id = ?")
+      .get(id) as { id: string; name: string; created_at: string } | undefined;
+    return row && { id: row.id, name: row.name, createdAt: row.created_at };
+  }
+
+  renameProfile(id: string, name: string): void {
+    this.db.prepare("UPDATE profiles SET name = ? WHERE id = ?").run(name.trim(), id);
+  }
+
+  deleteProfile(id: string): void {
+    this.db.prepare("DELETE FROM profiles WHERE id = ?").run(id);
+  }
+
   close(): void {
     this.db.close();
   }
