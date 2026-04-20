@@ -154,8 +154,8 @@ Privileges are re-resolved fresh on every request; JWT carries only `{ userId, e
 
 | Method | Path | Privilege gate | Purpose |
 | --- | --- | --- | --- |
-| POST   | /admin/login | (credential + ≥1 admin priv) | email+bcrypt check; 403 if user has no `manage:*`; returns JWT + user + privileges. |
-| GET    | /admin/me | (JWT only) | Current user + effective privileges. |
+| POST   | /admin/login | no middleware; handler checks creds + ≥1 admin priv | email+bcrypt check; 403 if user has no `manage:*`; returns JWT + user + privileges. |
+| GET    | /admin/me | JWT only (no privilege gate) | Current user + effective privileges. |
 | GET    | /admin/users | manage:users | List. |
 | POST   | /admin/users | manage:users | Create user (email, password). |
 | PATCH  | /admin/users/:id | manage:users | Update email and/or password. |
@@ -172,7 +172,7 @@ Privileges are re-resolved fresh on every request; JWT carries only `{ userId, e
 | PATCH  | /admin/profiles/:id | manage:profiles | Rename. |
 | DELETE | /admin/profiles/:id | manage:profiles | Delete; blocks self-lockout. |
 | PUT    | /admin/profiles/:id/privileges | manage:profiles | Replace privilege assignments (keys must be in catalog). |
-| GET    | /admin/privileges | (JWT only) | Read-only catalog + count of profiles including each key. |
+| GET    | /admin/privileges | JWT only (no privilege gate) | Read-only catalog + count of profiles including each key. |
 
 Wired in `index.ts`:
 ```ts
@@ -193,8 +193,7 @@ packages/admin-panel/
     ├── lib/api.ts                   — fetch wrapper; Authorization header; typed ApiError
     ├── contexts/AuthContext.tsx     — token + privileges in sessionStorage
     ├── hooks/
-    │   ├── use-auth.ts              — login/logout/hasPrivilege
-    │   └── use-resource.ts          — generic list/mutate helper for each resource page
+    │   └── use-auth.ts              — login/logout/hasPrivilege
     ├── pages/
     │   ├── LoginPage.tsx
     │   ├── UsersPage.tsx
