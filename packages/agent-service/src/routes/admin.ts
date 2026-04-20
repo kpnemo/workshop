@@ -68,7 +68,78 @@ export function createAdminRouter(db: Database, jwtSecret: string): Router {
     res.status(200).json(body);
   });
 
-  // /admin/users, /admin/groups, /admin/profiles are added in Tasks 10–12.
+  // --- /admin/users ---
+  router.get("/users", adminAuthMiddleware(db, jwtSecret, "manage:users"), (_req, res) => {
+    res.status(200).json(db.listAdminUsers());
+  });
+
+  router.post("/users", adminAuthMiddleware(db, jwtSecret, "manage:users"), async (req, res) => {
+    const { email, password } = req.body ?? {};
+    if (typeof email !== "string" || typeof password !== "string") {
+      res.status(400).json({ error: "Email and password required" }); return;
+    }
+    if (password.length < 8) { res.status(400).json({ error: "Password too short", field: "password" }); return; }
+    const normalized = email.trim().toLowerCase();
+    if (db.findUserByEmail(normalized)) {
+      res.status(409).json({ error: "Email already registered", field: "email" }); return;
+    }
+    const id = uuidv4();
+    const hashed = await bcrypt.hash(password, 10);
+    db.createUser(id, normalized, hashed);
+    res.status(201).json({ user: { id, email: normalized } });
+  });
+
+  router.patch("/users/:id", adminAuthMiddleware(db, jwtSecret, "manage:users"), async (req, res) => {
+    const { id } = req.params;
+    const { email, password } = req.body ?? {};
+    if (!db.listAdminUsers().find((u) => u.id === id)) { res.status(404).json({ error: "Not found" }); return; }
+    if (typeof email === "string") {
+      const normalized = email.trim().toLowerCase();
+      const existing = db.findUserByEmail(normalized);
+      if (existing && existing.id !== id) { res.status(409).json({ error: "Email already registered", field: "email" }); return; }
+      db.updateUserEmail(id, normalized);
+    }
+    if (typeof password === "string") {
+      if (password.length < 8) { res.status(400).json({ error: "Password too short", field: "password" }); return; }
+      db.updateUserPassword(id, await bcrypt.hash(password, 10));
+    }
+    res.status(200).json({ ok: true });
+  });
+
+  router.delete("/users/:id", adminAuthMiddleware(db, jwtSecret, "manage:users"), (req, res) => {
+    const { id } = req.params;
+    if (!db.listAdminUsers().find((u) => u.id === id)) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Pre-check: if this user is the only holder of any admin privilege, refuse.
+    const userPrivs = db.getEffectivePrivileges(id);
+    for (const k of ADMIN_PRIVILEGE_KEYS) {
+      if (userPrivs.has(k) && db.countUsersWithPrivilege(k) === 1) {
+        res.status(409).json({ error: "Cannot delete the last admin" }); return;
+      }
+    }
+    db.deleteUser(id);
+    res.status(204).end();
+  });
+
+  router.put("/users/:id/groups", adminAuthMiddleware(db, jwtSecret, "manage:users"), (req, res) => {
+    const { id } = req.params;
+    const { groupIds } = req.body ?? {};
+    if (!Array.isArray(groupIds) || groupIds.some((g) => typeof g !== "string")) {
+      res.status(400).json({ error: "groupIds must be string[]" }); return;
+    }
+
+    // Simulate-then-rollback: apply, verify invariants, roll back if violated.
+    const before = db.listUserGroupIds(id);
+    db.setUserGroups(id, groupIds);
+    const stillOK = [...ADMIN_PRIVILEGE_KEYS].every((k) => db.countUsersWithPrivilege(k) >= 1);
+    if (!stillOK) {
+      db.setUserGroups(id, before);
+      res.status(409).json({ error: "Cannot remove last admin" }); return;
+    }
+    res.status(200).json({ groupIds });
+  });
+
+  // /admin/groups, /admin/profiles are added in Tasks 11–12.
 
   return router;
 }
