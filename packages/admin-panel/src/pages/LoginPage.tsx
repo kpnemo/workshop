@@ -1,14 +1,22 @@
 // packages/admin-panel/src/pages/LoginPage.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth.js";
 import { ApiError } from "../lib/api.js";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) navigate("/", { replace: true });
+  }, [loading, user, navigate]);
+
+  if (!loading && user) return <Navigate to="/" replace />;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -16,6 +24,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
+      navigate("/", { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setError("You do not have access to the admin panel.");
