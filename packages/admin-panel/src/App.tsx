@@ -1,9 +1,10 @@
-// packages/admin-panel/src/App.tsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext.js";
 import { useAuth } from "./hooks/use-auth.js";
 import LoginPage from "./pages/LoginPage.js";
+import AppShell from "./components/AppShell.js";
+import UsersPage from "./pages/UsersPage.js";
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -17,7 +18,12 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/*" element={<RequireAuth><div className="p-8">Authenticated shell (wired in Task 17).</div></RequireAuth>} />
+        <Route path="/" element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route index element={<Navigate to="/users" replace />} />
+          <Route path="users" element={<UsersPage />} />
+          {/* Other pages mounted in later tasks */}
+          <Route path="*" element={<div className="text-muted">Not found.</div>} />
+        </Route>
       </Routes>
     </AuthProvider>
   );
