@@ -82,3 +82,23 @@ declare module "express-serve-static-core" {
     userId?: string;
   }
 }
+
+// Admin domain types (Phase 1)
+export interface Group {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  createdAt: string;
+  groupIds: string[];
+}

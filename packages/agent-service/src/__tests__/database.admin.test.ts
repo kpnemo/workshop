@@ -1,0 +1,43 @@
+// packages/agent-service/src/__tests__/database.admin.test.ts
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { Database } from "../services/database.js";
+
+describe("Database admin schema", () => {
+  let dbPath: string;
+  let db: Database;
+
+  beforeEach(() => {
+    dbPath = path.join(os.tmpdir(), `test-admin-${Date.now()}-${Math.random()}.db`);
+    db = new Database(dbPath);
+  });
+
+  afterEach(() => {
+    fs.existsSync(dbPath) && fs.unlinkSync(dbPath);
+  });
+
+  it("creates groups, profiles, user_groups, group_profiles, profile_privileges tables", () => {
+    const raw = (db as unknown as { db: import("better-sqlite3").Database }).db;
+    const tables = raw
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .all() as Array<{ name: string }>;
+    const names = tables.map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining([
+      "users", "conversations", "messages", "files",
+      "groups", "profiles", "user_groups", "group_profiles", "profile_privileges",
+    ]));
+  });
+
+  it("enforces FK cascade from users to user_groups", () => {
+    const raw = (db as unknown as { db: import("better-sqlite3").Database }).db;
+    raw.prepare("INSERT INTO users (id, email, password, created_at) VALUES ('u1','u1@x','h',datetime('now'))").run();
+    raw.prepare("INSERT INTO groups (id, name, created_at) VALUES ('g1','G1',datetime('now'))").run();
+    raw.prepare("INSERT INTO user_groups (user_id, group_id) VALUES ('u1','g1')").run();
+
+    raw.prepare("DELETE FROM users WHERE id = 'u1'").run();
+    const rows = raw.prepare("SELECT * FROM user_groups").all();
+    expect(rows.length).toBe(0);
+  });
+});

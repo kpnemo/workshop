@@ -52,6 +52,39 @@ export class Database {
       );
 
       CREATE INDEX IF NOT EXISTS idx_files_user ON files(user_id);
+
+      CREATE TABLE IF NOT EXISTS groups (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS user_groups (
+        user_id  TEXT NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+        group_id TEXT NOT NULL REFERENCES groups(id)   ON DELETE CASCADE,
+        PRIMARY KEY (user_id, group_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS group_profiles (
+        group_id   TEXT NOT NULL REFERENCES groups(id)   ON DELETE CASCADE,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        PRIMARY KEY (group_id, profile_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS profile_privileges (
+        profile_id    TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        privilege_key TEXT NOT NULL,
+        PRIMARY KEY (profile_id, privilege_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_user_groups_group       ON user_groups(group_id);
+      CREATE INDEX IF NOT EXISTS idx_group_profiles_profile  ON group_profiles(profile_id);
     `);
   }
 
