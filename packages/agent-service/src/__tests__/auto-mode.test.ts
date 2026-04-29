@@ -165,6 +165,15 @@ function makePlainTextStream(text: string) {
   };
 }
 
+function buildAppWithAgents(customAgents: Map<string, AgentConfig>) {
+  const toolService = new ToolService();
+  toolService.registerDefaults();
+  const app = express();
+  app.use(express.json());
+  app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(customAgents, db, toolService));
+  return app;
+}
+
 describe("auto-mode: assign_agent as terminal tool", () => {
   it("emits assignment SSE event and persists new agentId, then specialist responds in same turn", async () => {
     // Capture stream call params so we can verify models used
@@ -285,5 +294,79 @@ describe("auto-mode: assign_agent as terminal tool", () => {
     // Verify the stream was called with weather-agent's model
     expect(streamCallArgs.length).toBeGreaterThan(0);
     expect(streamCallArgs[0].model).toBe(weatherAgent.model);
+  });
+});
+
+describe("auto-mode: redirect-to-router bounce", () => {
+  it("bounces travel → router → weather in a single HTTP turn after redirect", async () => {
+    const travel: AgentConfig = {
+      id: "travel-agent", name: "Travel", model: "claude-sonnet-4-20250514", maxTokens: 100, temperature: 0.5,
+      systemPrompt: "Travel.",
+      topicBoundaries: { allowed: ["flights"], blocked: ["weather"], boundaryMessage: "n/a" },
+    };
+    const router: AgentConfig = {
+      id: "router", name: "Auto", model: "claude-haiku-4-5-20251001", maxTokens: 100, temperature: 0,
+      systemPrompt: "Router.",
+      tools: ["assign_agent"],
+    };
+    const weather: AgentConfig = {
+      id: "weather-agent", name: "Weather", model: "claude-sonnet-4-20250514", maxTokens: 100, temperature: 0.5,
+      systemPrompt: "Weather.",
+    };
+    const customAgents = new Map([
+      ["travel-agent", travel],
+      ["router", router],
+      ["weather-agent", weather],
+    ]);
+
+    let callIdx = 0;
+    mockMessagesStream = vi.fn().mockImplementation(() => {
+      const idx = callIdx++;
+      if (idx === 0) {
+        // travel calls redirect_to_router
+        return {
+          async *[Symbol.asyncIterator]() { yield { type: "message_stop" }; },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "tool_use", id: "tu_1", name: "redirect_to_router", input: { reason: "off-scope" } }],
+            stop_reason: "tool_use",
+          }),
+        };
+      } else if (idx === 1) {
+        // router calls assign_agent → weather-agent
+        return {
+          async *[Symbol.asyncIterator]() { yield { type: "message_stop" }; },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "tool_use", id: "tu_2", name: "assign_agent", input: { agent_id: "weather-agent", reason: "weather q" } }],
+            stop_reason: "tool_use",
+          }),
+        };
+      } else {
+        // weather-agent answers
+        return {
+          async *[Symbol.asyncIterator]() {
+            yield { type: "content_block_delta", delta: { type: "text_delta", text: "Sunny." } };
+            yield { type: "message_stop" };
+          },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "text", text: "Sunny." }],
+            stop_reason: "end_turn",
+          }),
+        };
+      }
+    });
+
+    const app = buildAppWithAgents(customAgents);
+    db.createConversation("conv-bounce", "travel-agent", "user-a");
+    db.setTitle("conv-bounce", "Existing Title");
+
+    const res = await makeRequest(
+      app, "POST", "/conversations/conv-bounce/messages",
+      { message: "What's the weather?" }, userAToken
+    );
+
+    expect(res.body).not.toContain("event: error");
+    expect(res.body).toContain("event: done");
+    expect(db.getConversation("conv-bounce")!.agentId).toBe("weather-agent");
+    expect(db.getConversation("conv-bounce")!.title).toBe("Existing Title"); // not regenerated
   });
 });

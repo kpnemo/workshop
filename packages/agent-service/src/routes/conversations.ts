@@ -142,6 +142,8 @@ export function createConversationRouter(
       // Outer delegation loop — re-runs when delegate_to switches the active agent
       let fullResponse = "";
       let continueWithDelegation = true;
+      let redirectsThisTurn = 0;
+      let redirectJustHappened = false;
       while (continueWithDelegation) {
         continueWithDelegation = false;
 
@@ -214,6 +216,10 @@ export function createConversationRouter(
           systemPrompt += `\n\n[Topic Boundaries]\nYou specialize in: ${allowed}.\nDecline these topics by handing back: ${blocked}.\n\nIf the user's message is outside your scope, call the redirect_to_router tool with a short reason — do NOT just refuse or apologize. The router will pick a different specialist.`;
         }
 
+        if (curAgentId === "router" && redirectJustHappened) {
+          systemPrompt += `\n\n[Re-engagement]\nYou're being re-engaged because the previous specialist couldn't handle this message. Pick a new specialist with assign_agent. Do not ask follow-up questions; route immediately.`;
+        }
+
         if (curIsDelegate) {
           const delegationStart = currentConv.messages.findLast(
             (m) => m.delegationMeta?.type === "delegation_start"
@@ -236,7 +242,15 @@ export function createConversationRouter(
 
         const delegationOptions = { isMainAgent: curIsMain, isActiveDelegate: curIsDelegate, summaryEnabled: currentConv.summaryEnabled };
         const tools = toolService ? toolService.getToolsForAgent(curAgent, delegationOptions) : [];
-        const loopMessages: Array<{ role: string; content: any }> = claudeMessages;
+        let loopMessages: Array<{ role: string; content: any }>;
+        if (redirectJustHappened && curAgentId === "router") {
+          // Re-engagement turn: feed the router only the user's current message,
+          // not the prior specialist's chat history.
+          loopMessages = [{ role: "user", content: message }];
+          redirectJustHappened = false;
+        } else {
+          loopMessages = claudeMessages;
+        }
 
         fullResponse = "";
         let iterations = 0;
@@ -251,7 +265,7 @@ export function createConversationRouter(
             max_tokens: curAgent.maxTokens,
             temperature: curAgent.temperature,
             system: systemPrompt,
-            messages: loopMessages,
+            messages: [...loopMessages],
           };
           if (tools.length > 0) {
             streamParams.tools = tools;
@@ -379,10 +393,21 @@ export function createConversationRouter(
               }
             }
 
+            let toolResultContent = result;
+            if (toolUse.name === "redirect_to_router" && redirectsThisTurn >= 1) {
+              toolResultContent = "Error: redirect already used in this turn. Please respond to the user with text instead.";
+              // Note: by this point the tool's `execute` has already run and (incorrectly) flipped
+              // agentId to router. Roll it back so the original agent keeps the turn.
+              const conv = db.getConversation(conversation.id)!;
+              if (conv.agentId === "router" && curAgentId !== "router") {
+                db.setAgentId(conversation.id, curAgentId);
+              }
+            }
+
             toolResults.push({
               type: "tool_result",
               tool_use_id: toolUse.id,
-              content: result,
+              content: toolResultContent,
             });
           }
 
@@ -392,12 +417,17 @@ export function createConversationRouter(
             content: toolResults,
           });
 
-          // Check if an assignment tool was invoked (terminal — router's turn is done)
+          // Check if a routing tool was invoked (assign_agent OR redirect_to_router).
+          // Both terminate this agent's turn and re-loop with the new active agent,
+          // so the newly-assigned agent takes its turn immediately instead of forcing
+          // the user to resend their message.
           const hasAssignment = toolResults.some((r) => r.content.startsWith("[ASSIGNMENT]"));
-          if (hasAssignment) {
-            // assign_agent reassigns the conversation. Continue the outer loop so the
-            // newly-assigned agent takes its turn immediately, responding to the user's
-            // original message instead of forcing them to send another one.
+          const hasRedirect = toolResults.some((r) => r.content.startsWith("[REDIRECT]"));
+          if (hasAssignment || hasRedirect) {
+            if (hasRedirect) {
+              redirectsThisTurn++;
+              redirectJustHappened = true;
+            }
             continueWithDelegation = true;
             break;
           }

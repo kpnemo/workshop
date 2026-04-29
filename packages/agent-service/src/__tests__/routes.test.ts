@@ -370,6 +370,180 @@ describe("Tool execution loop", () => {
   });
 });
 
+describe("Redirect-to-router flow", () => {
+  it("redirects from specialist to router and on to a new specialist in one turn", async () => {
+    const travel: AgentConfig = {
+      id: "travel-agent", name: "Travel", model: "claude-sonnet-4-20250514", maxTokens: 100, temperature: 0.5,
+      systemPrompt: "You are a travel agent.",
+      topicBoundaries: { allowed: ["flight booking"], blocked: ["weather"], boundaryMessage: "n/a" },
+    };
+    const router: AgentConfig = {
+      id: "router", name: "Auto", model: "claude-sonnet-4-20250514", maxTokens: 100, temperature: 0.5,
+      systemPrompt: "You are the router.",
+      tools: ["assign_agent"],
+    };
+    const weather: AgentConfig = {
+      id: "weather-agent", name: "Weather", model: "claude-sonnet-4-20250514", maxTokens: 100, temperature: 0.5,
+      systemPrompt: "You are a weather agent.",
+    };
+
+    const agentMap = new Map([
+      ["travel-agent", travel],
+      ["router", router],
+      ["weather-agent", weather],
+    ]);
+
+    // Build app with ToolService (redirect_to_router + assign_agent need to be registered)
+    const toolService = new ToolService();
+    toolService.registerDefaults();
+
+    let callIdx = 0;
+    const streamMock = vi.fn().mockImplementation(() => {
+      const idx = callIdx++;
+      if (idx === 0) {
+        // travel-agent calls redirect_to_router
+        return {
+          async *[Symbol.asyncIterator]() { yield { type: "message_stop" }; },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "tool_use", id: "tu_1", name: "redirect_to_router", input: { reason: "weather isn't my scope" } }],
+            stop_reason: "tool_use",
+          }),
+        };
+      } else if (idx === 1) {
+        // router calls assign_agent → weather-agent
+        return {
+          async *[Symbol.asyncIterator]() { yield { type: "message_stop" }; },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "tool_use", id: "tu_2", name: "assign_agent", input: { agent_id: "weather-agent", reason: "you asked about weather" } }],
+            stop_reason: "tool_use",
+          }),
+        };
+      } else {
+        // weather-agent answers
+        return {
+          async *[Symbol.asyncIterator]() {
+            yield { type: "content_block_delta", delta: { type: "text_delta", text: "It will be sunny." } };
+            yield { type: "message_stop" };
+          },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "text", text: "It will be sunny." }],
+            stop_reason: "end_turn",
+          }),
+        };
+      }
+    });
+    mockMessagesStream = streamMock;
+    mockMessagesCreate = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "Weather Title" }] });
+
+    const app = buildAppWithTools(agentMap, toolService);
+    db.createConversation("conv-redirect", "travel-agent", "user-a");
+
+    const res = await makeRequest(
+      app, "POST", "/conversations/conv-redirect/messages",
+      { message: "What's the weather in Tokyo?" }, userAToken
+    );
+
+    const sse = res.body;
+    expect(sse).toContain("event: redirect_to_router");
+    expect(sse).toContain('"from":"travel-agent"');
+    expect(sse).toContain('"to":"router"');
+    expect(sse).toContain("event: assignment");
+    expect(sse).toContain('"to":"weather-agent"');
+    expect(sse.indexOf("redirect_to_router")).toBeLessThan(sse.indexOf("event: assignment"));
+
+    expect(db.getConversation("conv-redirect")!.agentId).toBe("weather-agent");
+
+    // Iteration 2 (router's call) should have [Re-engagement] in system prompt
+    // and only one message (the user's original message).
+    const iter2Args = streamMock.mock.calls[1][0];
+    expect(iter2Args.system).toContain("[Re-engagement]");
+    expect(iter2Args.messages).toHaveLength(1);
+    expect(iter2Args.messages[0].role).toBe("user");
+    expect(iter2Args.messages[0].content).toBe("What's the weather in Tokyo?");
+  });
+
+  it("caps redirect_to_router at one call per HTTP turn", async () => {
+    const a: AgentConfig = {
+      id: "agent-a", name: "A", model: "claude-sonnet-4-20250514", maxTokens: 100, temperature: 0.5,
+      systemPrompt: "You are A.",
+    };
+    const router: AgentConfig = {
+      id: "router", name: "Auto", model: "claude-sonnet-4-20250514", maxTokens: 100, temperature: 0.5,
+      systemPrompt: "You are the router.",
+      tools: ["assign_agent"],
+    };
+    const agentMap = new Map([["agent-a", a], ["router", router]]);
+
+    const toolService = new ToolService();
+    toolService.registerDefaults();
+
+    let callIdx = 0;
+    const streamMock = vi.fn().mockImplementation(() => {
+      const idx = callIdx++;
+      if (idx === 0) {
+        // agent-a redirects (first redirect — allowed)
+        return {
+          async *[Symbol.asyncIterator]() { yield { type: "message_stop" }; },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "tool_use", id: "tu_1", name: "redirect_to_router", input: { reason: "off-topic" } }],
+            stop_reason: "tool_use",
+          }),
+        };
+      } else if (idx === 1) {
+        // router assigns back to agent-a
+        return {
+          async *[Symbol.asyncIterator]() { yield { type: "message_stop" }; },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "tool_use", id: "tu_2", name: "assign_agent", input: { agent_id: "agent-a", reason: "let A handle this" } }],
+            stop_reason: "tool_use",
+          }),
+        };
+      } else if (idx === 2) {
+        // agent-a tries to redirect AGAIN (second redirect — capped)
+        return {
+          async *[Symbol.asyncIterator]() { yield { type: "message_stop" }; },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "tool_use", id: "tu_3", name: "redirect_to_router", input: { reason: "still off-topic" } }],
+            stop_reason: "tool_use",
+          }),
+        };
+      } else {
+        // agent-a forced to answer with text after cap error
+        return {
+          async *[Symbol.asyncIterator]() {
+            yield { type: "content_block_delta", delta: { type: "text_delta", text: "Sorry, I can't help with that." } };
+            yield { type: "message_stop" };
+          },
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: "text", text: "Sorry, I can't help with that." }],
+            stop_reason: "end_turn",
+          }),
+        };
+      }
+    });
+    mockMessagesStream = streamMock;
+    mockMessagesCreate = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "Cap Title" }] });
+
+    const app = buildAppWithTools(agentMap, toolService);
+    db.createConversation("conv-cap", "agent-a", "user-a");
+
+    await makeRequest(
+      app, "POST", "/conversations/conv-cap/messages",
+      { message: "anything" }, userAToken
+    );
+
+    // Iteration 4: the tool_result returned to agent-a should contain the cap error
+    const iter4Args = streamMock.mock.calls[3][0];
+    const lastMessage = iter4Args.messages[iter4Args.messages.length - 1];
+    const toolResultBlock = lastMessage.content.find((b: any) => b.type === "tool_result" && b.tool_use_id === "tu_3");
+    expect(toolResultBlock).toBeDefined();
+    expect(toolResultBlock.content).toContain("redirect already used");
+
+    // Conversation ended on agent-a (rollback worked)
+    expect(db.getConversation("conv-cap")!.agentId).toBe("agent-a");
+  });
+});
+
 describe("Debug mode", () => {
   it("emits debug_agent and debug_stream events when ?debug=true", async () => {
     // Reset to default mock
