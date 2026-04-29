@@ -217,7 +217,7 @@ export function createConversationRouter(
         }
 
         if (curAgentId === "router" && redirectJustHappened) {
-          systemPrompt += `\n\n[Re-engagement]\nYou're being re-engaged because the previous specialist couldn't handle this message. Pick a new specialist with assign_agent. Do not ask follow-up questions; route immediately.`;
+          systemPrompt += `\n\n[Re-engagement]\nYou're being re-engaged because the previous specialist redirected this conversation back to you. Pick a new specialist with assign_agent. Do not ask follow-up questions; route immediately.`;
         }
 
         if (curIsDelegate) {
@@ -247,6 +247,7 @@ export function createConversationRouter(
           // Re-engagement turn: feed the router only the user's current message,
           // not the prior specialist's chat history.
           loopMessages = [{ role: "user", content: message }];
+          // Clear AFTER the [Re-engagement] systemPrompt block above has read this flag this iteration.
           redirectJustHappened = false;
         } else {
           loopMessages = claudeMessages;
@@ -265,6 +266,8 @@ export function createConversationRouter(
             max_tokens: curAgent.maxTokens,
             temperature: curAgent.temperature,
             system: systemPrompt,
+            // Spread to prevent later loopMessages.push() calls from mutating the SDK params object
+            // (which would corrupt Vitest mock-call capture in tests).
             messages: [...loopMessages],
           };
           if (tools.length > 0) {
@@ -361,6 +364,19 @@ export function createConversationRouter(
           const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
 
           for (const toolUse of toolUseBlocks as any[]) {
+            // Pre-execute cap: skip the redirect tool entirely if the cap is already hit.
+            // This prevents ghost side effects (DB banner, SSE event) from a redirect
+            // that's about to be denied. Without this, execute() runs, writes side
+            // effects, and rollback is incomplete.
+            if (toolUse.name === "redirect_to_router" && redirectsThisTurn >= 1) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: toolUse.id,
+                content: "Error: redirect already used in this turn. Please respond to the user with text instead.",
+              });
+              continue;
+            }
+
             console.log(`[tool] Executing ${toolUse.name} with input: ${JSON.stringify(toolUse.input).slice(0, 200)}`);
             writeSSE(res, "tool_start", { tool: toolUse.name, input: toolUse.input });
 
@@ -393,21 +409,10 @@ export function createConversationRouter(
               }
             }
 
-            let toolResultContent = result;
-            if (toolUse.name === "redirect_to_router" && redirectsThisTurn >= 1) {
-              toolResultContent = "Error: redirect already used in this turn. Please respond to the user with text instead.";
-              // Note: by this point the tool's `execute` has already run and (incorrectly) flipped
-              // agentId to router. Roll it back so the original agent keeps the turn.
-              const conv = db.getConversation(conversation.id)!;
-              if (conv.agentId === "router" && curAgentId !== "router") {
-                db.setAgentId(conversation.id, curAgentId);
-              }
-            }
-
             toolResults.push({
               type: "tool_result",
               tool_use_id: toolUse.id,
-              content: toolResultContent,
+              content: result,
             });
           }
 

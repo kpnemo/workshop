@@ -76,12 +76,12 @@ const agents = new Map<string, AgentConfig>([
   ["weather-agent", weatherAgent],
 ]);
 
-function buildApp() {
+function buildApp(customAgents?: Map<string, AgentConfig>) {
   const toolService = new ToolService();
   toolService.registerDefaults();
   const app = express();
   app.use(express.json());
-  app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(agents, db, toolService));
+  app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(customAgents ?? agents, db, toolService));
   return app;
 }
 
@@ -163,15 +163,6 @@ function makePlainTextStream(text: string) {
       stop_reason: "end_turn",
     }),
   };
-}
-
-function buildAppWithAgents(customAgents: Map<string, AgentConfig>) {
-  const toolService = new ToolService();
-  toolService.registerDefaults();
-  const app = express();
-  app.use(express.json());
-  app.use("/conversations", authMiddleware(JWT_SECRET), createConversationRouter(customAgents, db, toolService));
-  return app;
 }
 
 describe("auto-mode: assign_agent as terminal tool", () => {
@@ -355,7 +346,7 @@ describe("auto-mode: redirect-to-router bounce", () => {
       }
     });
 
-    const app = buildAppWithAgents(customAgents);
+    const app = buildApp(customAgents);
     db.createConversation("conv-bounce", "travel-agent", "user-a");
     db.setTitle("conv-bounce", "Existing Title");
 

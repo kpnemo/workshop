@@ -449,7 +449,7 @@ describe("Redirect-to-router flow", () => {
     expect(sse).toContain('"to":"router"');
     expect(sse).toContain("event: assignment");
     expect(sse).toContain('"to":"weather-agent"');
-    expect(sse.indexOf("redirect_to_router")).toBeLessThan(sse.indexOf("event: assignment"));
+    expect(sse.indexOf("event: redirect_to_router")).toBeLessThan(sse.indexOf("event: assignment"));
 
     expect(db.getConversation("conv-redirect")!.agentId).toBe("weather-agent");
 
