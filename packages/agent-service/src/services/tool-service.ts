@@ -4,6 +4,7 @@ import type { AgentConfig } from "../types.js";
 import { BrowserManager } from "./tools/browser-manager.js";
 import { createBrowseUrlTool } from "./tools/browse-url.js";
 import { createAssignAgentTool } from "./tools/assign-agent.js";
+import { createRedirectToRouterTool } from "./tools/redirect-to-router.js";
 import { createDelegateToTool } from "./tools/delegate-to.js";
 import { createHandBackTool } from "./tools/hand-back.js";
 import { createSearchFilesTool } from "./tools/search-files.js";
@@ -38,6 +39,7 @@ export class ToolService {
   registerDefaults(): void {
     this.register(createBrowseUrlTool(this.browserManager));
     this.register(createAssignAgentTool());
+    this.register(createRedirectToRouterTool());
     this.register(createSearchFilesTool());
     this.register(createReadUserFileTool());
     this.register(createUpdateSummaryTool());
@@ -56,6 +58,15 @@ export class ToolService {
         if (tool) {
           definitions.push(tool.definition);
         }
+      }
+    }
+
+    // Auto-grant redirect_to_router to every non-router agent (mirror of how
+    // delegate_to and hand_back are added — no frontmatter opt-in required).
+    if (agent.id !== "router") {
+      const redirectTool = this.tools.get("redirect_to_router");
+      if (redirectTool && !definitions.some((d) => d.name === "redirect_to_router")) {
+        definitions.push(redirectTool.definition);
       }
     }
 
