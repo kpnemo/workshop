@@ -160,7 +160,9 @@ describe("Delegation tool injection", () => {
 
     const definitions = service.getToolsForAgent(agent);
     const names = definitions.map((d) => d.name);
-    expect(names).toEqual(["my_tool"]);
+    expect(names).toContain("my_tool");
+    expect(names).not.toContain("delegate_to");
+    expect(names).not.toContain("hand_back");
   });
 });
 
