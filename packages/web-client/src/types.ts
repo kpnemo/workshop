@@ -11,7 +11,7 @@ export interface DelegationMeta {
 export interface DebugEvent {
   id: string;
   timestamp: Date;
-  type: 'agent' | 'thinking' | 'tool' | 'stream' | 'delegation' | 'assignment' | 'summary';
+  type: 'agent' | 'thinking' | 'tool' | 'stream' | 'delegation' | 'assignment' | 'redirect' | 'summary';
   data: Record<string, unknown>;
   turn?: string;
 }

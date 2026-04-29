@@ -267,7 +267,7 @@ export function useChat(
           // The active assistant ref is now stale; the next assignment event mints a new one.
           activeAssistantIdRef.current = null;
           debug?.addEvent({
-            type: "assignment",
+            type: "redirect",
             data: { from: data.from, to: data.to, agentName: data.agentName, reason: data.reason },
           });
         },
