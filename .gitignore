@@ -8,6 +8,7 @@ dist/
 *.db-wal
 .playwright-mcp/
 *.tsbuildinfo
+coverage/
 workshop-onboarding-workspace/
 .worktrees/
 packages/data/uploads/*
