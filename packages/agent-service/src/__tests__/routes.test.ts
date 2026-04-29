@@ -8,14 +8,9 @@ import jwt from "jsonwebtoken";
 import { createConversationRouter } from "../routes/conversations.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { Database } from "../services/database.js";
-import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
 import { ToolService } from "../services/tool-service.js";
 import type { Tool } from "../services/tools/types.js";
-
-vi.mock("../services/guardrails.js", () => ({
-  checkTopicBoundary: vi.fn().mockResolvedValue({ allowed: true }),
-}));
 
 vi.mock("playwright", () => ({
   chromium: {
@@ -272,13 +267,51 @@ describe("POST /conversations/:id/messages", () => {
     expect(res.body).toContain("event: done");
   });
 
-  it("returns SSE blocked event when guardrail blocks message", async () => {
-    const app = buildApp(new Map([["guarded-bot", guardedAgent]]));
-    db.createConversation("conv-1", "guarded-bot", "user-a");
-    vi.mocked(checkTopicBoundary).mockResolvedValueOnce({ allowed: false, message: "I can only help with product topics." });
-    const res = await makeRequest(app, "POST", "/conversations/conv-1/messages", { message: "Tell me about politics" }, userAToken);
-    expect(res.body).toContain("event: blocked");
-    expect(res.body).toContain("I can only help with product topics.");
+  it("injects [Topic Boundaries] block into the system prompt when agent has topicBoundaries", async () => {
+    const agentWithBoundaries: AgentConfig = {
+      id: "product-bot",
+      name: "Product",
+      model: "claude-sonnet-4-20250514",
+      maxTokens: 100,
+      temperature: 0.5,
+      systemPrompt: "You are a product assistant.",
+      avatar: { emoji: "📦", color: "#000" },
+      topicBoundaries: {
+        allowed: ["product features", "pricing"],
+        blocked: ["politics"],
+        boundaryMessage: "I can only help with product topics.",
+      },
+    };
+
+    const endTurnStream = {
+      async *[Symbol.asyncIterator]() {
+        yield { type: "content_block_delta", delta: { type: "text_delta", text: "ok" } };
+        yield { type: "message_stop" };
+      },
+      finalMessage: vi.fn().mockResolvedValue({
+        content: [{ type: "text", text: "ok" }],
+        stop_reason: "end_turn",
+      }),
+    };
+    const capturedStream = vi.fn().mockReturnValue(endTurnStream);
+    mockMessagesStream = capturedStream;
+    mockMessagesCreate = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "Product Title" }],
+    });
+
+    const app = buildApp(new Map([["product-bot", agentWithBoundaries]]));
+    db.createConversation("conv-boundary", "product-bot", "user-a");
+
+    await makeRequest(
+      app, "POST", "/conversations/conv-boundary/messages",
+      { message: "Tell me about pricing" }, userAToken
+    );
+
+    const callArgs = capturedStream.mock.calls[0][0];
+    expect(callArgs.system).toContain("[Topic Boundaries]");
+    expect(callArgs.system).toContain("product features, pricing");
+    expect(callArgs.system).toContain("politics");
+    expect(callArgs.system).toContain("redirect_to_router");
   });
 });
 

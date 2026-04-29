@@ -3,7 +3,6 @@ import type { Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import { Database } from "../services/database.js";
-import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
 import type { ToolService } from "../services/tool-service.js";
 import type { FileService } from "../services/file-service.js";
@@ -131,26 +130,6 @@ export function createConversationRouter(
     console.log(`[message] New message in conversation ${conversation.id} (agent: "${conversation.agentId}")`);
     console.log(`[message] User: "${message.slice(0, 100)}${message.length > 100 ? "..." : ""}"`);
 
-    // Guardrail check (before SSE headers)
-    if (agent.topicBoundaries) {
-      console.log(`[guardrails] Checking topic boundaries for agent "${conversation.agentId}"`);
-      const guardrailResult = await checkTopicBoundary(
-        message,
-        agent.topicBoundaries
-      );
-
-      if (!guardrailResult.allowed) {
-        console.log(`[guardrails] Message BLOCKED: ${guardrailResult.message}`);
-        db.addMessage(conversation.id, "user", message);
-        startSSE(res);
-        writeSSE(res, "blocked", { message: guardrailResult.message });
-        writeSSE(res, "done", { conversationId: conversation.id });
-        res.end();
-        return;
-      }
-      console.log(`[guardrails] Message allowed`);
-    }
-
     // Add user message to history
     db.addMessage(conversation.id, "user", message);
 
@@ -227,6 +206,12 @@ export function createConversationRouter(
             .join("\n");
 
           systemPrompt += `\n\n[Available Specialist Agents]\nYou can delegate tasks to these specialist agents using the delegate_to tool:\n\n${delegateDescriptions}\n\nWhen a user's request matches a specialist's capability, delegate to them with a clear context summary. Handle general conversation yourself.`;
+        }
+
+        if (curAgent.topicBoundaries) {
+          const allowed = curAgent.topicBoundaries.allowed.join(", ");
+          const blocked = curAgent.topicBoundaries.blocked.join(", ");
+          systemPrompt += `\n\n[Topic Boundaries]\nYou specialize in: ${allowed}.\nDecline these topics by handing back: ${blocked}.\n\nIf the user's message is outside your scope, call the redirect_to_router tool with a short reason — do NOT just refuse or apologize. The router will pick a different specialist.`;
         }
 
         if (curIsDelegate) {
