@@ -17,6 +17,7 @@ const EVENT_STYLES: Record<string, { color: string; label: string }> = {
   stream: { color: "text-green-400", label: "STREAM" },
   delegation: { color: "text-pink-400", label: "DELEGATE" },
   assignment: { color: "text-pink-400", label: "ASSIGN" },
+  redirect: { color: "text-pink-400", label: "REDIRECT" },
   summary: { color: "text-cyan-400", label: "SUMMARY" },
 };
 
@@ -91,6 +92,14 @@ function EventEntry({ event }: { event: DebugEvent }) {
         {event.type === "assignment" && (
           <>
             <div className="text-muted-foreground">{String(data.from)} → {String(data.to)}</div>
+            {data.reason && <div className="text-muted-foreground/60 truncate">reason: {String(data.reason)}</div>}
+          </>
+        )}
+
+        {event.type === "redirect" && (
+          <>
+            <div className="text-muted-foreground">{String(data.from)} → {String(data.to)}</div>
+            {data.agentName && <div className="text-muted-foreground/60 truncate">router: {String(data.agentName)}</div>}
             {data.reason && <div className="text-muted-foreground/60 truncate">reason: {String(data.reason)}</div>}
           </>
         )}

@@ -80,9 +80,14 @@ describe("useChat", () => {
     expect(assistantMsg?.content).toBe("Hello there");
   });
 
-  it("handles blocked messages as system messages", async () => {
+  it("handles redirect_to_router event by dropping the stale assistant placeholder and inserting a banner", async () => {
     vi.mocked(api.sendMessage).mockImplementation(async (_id, _msg, cb) => {
-      cb.onBlocked("Stay on topic.");
+      cb.onRedirect?.({
+        from: "travel-agent",
+        to: "router",
+        agentName: "Auto",
+        reason: "weather isn't my scope",
+      });
       cb.onDone();
     });
     const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
@@ -90,15 +95,31 @@ describe("useChat", () => {
       expect(result.current.state.conversationId).toBe("conv-123");
     });
     await act(async () => {
-      result.current.sendMessage("politics");
+      result.current.sendMessage("What's the weather?");
     });
     await waitFor(() => {
       expect(result.current.state.isStreaming).toBe(false);
     });
-    const systemMsg = result.current.state.messages.find(
-      (m) => m.role === "system"
+
+    const banner = result.current.state.messages.find(
+      (m) => m.role === "system" && m.delegationMeta?.type === "redirect_to_router"
     );
-    expect(systemMsg?.content).toBe("Stay on topic.");
+    expect(banner).toBeDefined();
+    expect(banner!.delegationMeta!.from).toBe("travel-agent");
+    expect(banner!.delegationMeta!.to).toBe("router");
+    expect(banner!.delegationMeta!.reason).toBe("weather isn't my scope");
+
+    // The empty assistant placeholder for travel-agent is dropped.
+    const emptyAssistant = result.current.state.messages.find(
+      (m) => m.role === "assistant" && m.content === ""
+    );
+    expect(emptyAssistant).toBeUndefined();
+
+    // Cached conversation's agentId is now "router".
+    const cachedConv = result.current.state.conversations.find(
+      (c) => c.id === "conv-123"
+    );
+    expect(cachedConv?.agentId).toBe("router");
   });
 
   it("sets error on connection failure", async () => {

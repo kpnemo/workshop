@@ -1,5 +1,5 @@
 export interface DelegationMeta {
-  type: "delegation_start" | "delegation_end" | "assignment";
+  type: "delegation_start" | "delegation_end" | "assignment" | "redirect_to_router";
   from: string;
   to: string;
   context?: string;
@@ -11,7 +11,7 @@ export interface DelegationMeta {
 export interface DebugEvent {
   id: string;
   timestamp: Date;
-  type: 'agent' | 'thinking' | 'tool' | 'stream' | 'delegation' | 'assignment' | 'summary';
+  type: 'agent' | 'thinking' | 'tool' | 'stream' | 'delegation' | 'assignment' | 'redirect' | 'summary';
   data: Record<string, unknown>;
   turn?: string;
 }
@@ -70,13 +70,14 @@ export interface ConversationDetail {
 
 export interface SendMessageCallbacks {
   onDelta: (text: string, agentId?: string) => void;
-  onBlocked: (message: string) => void;
+  onBlocked?: (message: string) => void;
   onError: (message: string) => void;
   onTitle: (title: string) => void;
   onDone: () => void;
   onDelegationStart?: (data: { from: string; to: string; agentName: string; emoji: string; color: string; context: string }) => void;
   onDelegationEnd?: (data: { from: string; to: string; agentName: string; summary: string }) => void;
   onAssignment?: (data: { from: string; to: string; agentName: string; reason: string }) => void;
+  onRedirect?: (data: { from: string; to: string; agentName: string; reason: string }) => void;
   onDebugAgent?: (data: { agentId: string; model: string; temperature: number; maxTokens: number; systemPromptPreview: string; isDelegated: boolean }) => void;
   onDebugThinking?: (data: { text: string }) => void;
   onDebugTool?: (data: { tool: string; input: Record<string, unknown>; result: string; durationMs: number; resultSize: number }) => void;

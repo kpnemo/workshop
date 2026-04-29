@@ -160,9 +160,6 @@ export async function sendMessage(
           case "delta":
             callbacks.onDelta(data.text, data.agentId);
             break;
-          case "blocked":
-            callbacks.onBlocked(data.message);
-            break;
           case "error":
             callbacks.onError(data.message);
             break;
@@ -177,6 +174,9 @@ export async function sendMessage(
             break;
           case "assignment":
             callbacks.onAssignment?.(data);
+            break;
+          case "redirect_to_router":
+            callbacks.onRedirect?.(data);
             break;
           case "debug_agent":
             callbacks.onDebugAgent?.(data);

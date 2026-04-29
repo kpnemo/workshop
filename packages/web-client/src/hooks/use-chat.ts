@@ -238,12 +238,38 @@ export function useChat(
             ),
           }));
         },
-        onBlocked: (message) => {
-          const systemMessage: Message = { id: uuidv4(), role: "system", content: message, timestamp: new Date() };
+        onRedirect: (data) => {
+          const banner: Message = {
+            id: uuidv4(),
+            role: "system",
+            content: "",
+            timestamp: new Date(),
+            delegationMeta: {
+              type: "redirect_to_router",
+              from: data.from,
+              to: data.to,
+              agentName: data.agentName,
+              reason: data.reason,
+            },
+          };
           setState((s) => ({
             ...s,
-            messages: [...s.messages.filter((m) => m.id !== assistantMessageId), systemMessage],
+            messages: [
+              // Drop the empty specialist placeholder; the upcoming assignment
+              // event will mint a fresh placeholder for the next specialist.
+              ...s.messages.filter((m) => !(m.id === assistantMessageId && m.content === "")),
+              banner,
+            ],
+            conversations: s.conversations.map((c) =>
+              c.id === s.conversationId ? { ...c, agentId: data.to } : c
+            ),
           }));
+          // The active assistant ref is now stale; the next assignment event mints a new one.
+          activeAssistantIdRef.current = null;
+          debug?.addEvent({
+            type: "redirect",
+            data: { from: data.from, to: data.to, agentName: data.agentName, reason: data.reason },
+          });
         },
         onError: (message) => {
           setState((s) => ({

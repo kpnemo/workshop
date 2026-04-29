@@ -3,7 +3,6 @@ import type { Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import { Database } from "../services/database.js";
-import { checkTopicBoundary } from "../services/guardrails.js";
 import type { AgentConfig } from "../types.js";
 import type { ToolService } from "../services/tool-service.js";
 import type { FileService } from "../services/file-service.js";
@@ -131,26 +130,6 @@ export function createConversationRouter(
     console.log(`[message] New message in conversation ${conversation.id} (agent: "${conversation.agentId}")`);
     console.log(`[message] User: "${message.slice(0, 100)}${message.length > 100 ? "..." : ""}"`);
 
-    // Guardrail check (before SSE headers)
-    if (agent.topicBoundaries) {
-      console.log(`[guardrails] Checking topic boundaries for agent "${conversation.agentId}"`);
-      const guardrailResult = await checkTopicBoundary(
-        message,
-        agent.topicBoundaries
-      );
-
-      if (!guardrailResult.allowed) {
-        console.log(`[guardrails] Message BLOCKED: ${guardrailResult.message}`);
-        db.addMessage(conversation.id, "user", message);
-        startSSE(res);
-        writeSSE(res, "blocked", { message: guardrailResult.message });
-        writeSSE(res, "done", { conversationId: conversation.id });
-        res.end();
-        return;
-      }
-      console.log(`[guardrails] Message allowed`);
-    }
-
     // Add user message to history
     db.addMessage(conversation.id, "user", message);
 
@@ -163,6 +142,8 @@ export function createConversationRouter(
       // Outer delegation loop — re-runs when delegate_to switches the active agent
       let fullResponse = "";
       let continueWithDelegation = true;
+      let redirectsThisTurn = 0;
+      let redirectJustHappened = false;
       while (continueWithDelegation) {
         continueWithDelegation = false;
 
@@ -229,6 +210,16 @@ export function createConversationRouter(
           systemPrompt += `\n\n[Available Specialist Agents]\nYou can delegate tasks to these specialist agents using the delegate_to tool:\n\n${delegateDescriptions}\n\nWhen a user's request matches a specialist's capability, delegate to them with a clear context summary. Handle general conversation yourself.`;
         }
 
+        if (curAgent.topicBoundaries) {
+          const allowed = curAgent.topicBoundaries.allowed.join(", ");
+          const blocked = curAgent.topicBoundaries.blocked.join(", ");
+          systemPrompt += `\n\n[Topic Boundaries]\nYou specialize in: ${allowed}.\nDecline these topics by handing back: ${blocked}.\n\nIf the user's message is outside your scope, call the redirect_to_router tool with a short reason — do NOT just refuse or apologize. The router will pick a different specialist.`;
+        }
+
+        if (curAgentId === "router" && redirectJustHappened) {
+          systemPrompt += `\n\n[Re-engagement]\nYou're being re-engaged because the previous specialist redirected this conversation back to you. Pick a new specialist with assign_agent. Do not ask follow-up questions; route immediately.`;
+        }
+
         if (curIsDelegate) {
           const delegationStart = currentConv.messages.findLast(
             (m) => m.delegationMeta?.type === "delegation_start"
@@ -251,7 +242,16 @@ export function createConversationRouter(
 
         const delegationOptions = { isMainAgent: curIsMain, isActiveDelegate: curIsDelegate, summaryEnabled: currentConv.summaryEnabled };
         const tools = toolService ? toolService.getToolsForAgent(curAgent, delegationOptions) : [];
-        const loopMessages: Array<{ role: string; content: any }> = claudeMessages;
+        let loopMessages: Array<{ role: string; content: any }>;
+        if (redirectJustHappened && curAgentId === "router") {
+          // Re-engagement turn: feed the router only the user's current message,
+          // not the prior specialist's chat history.
+          loopMessages = [{ role: "user", content: message }];
+          // Clear AFTER the [Re-engagement] systemPrompt block above has read this flag this iteration.
+          redirectJustHappened = false;
+        } else {
+          loopMessages = claudeMessages;
+        }
 
         fullResponse = "";
         let iterations = 0;
@@ -266,7 +266,9 @@ export function createConversationRouter(
             max_tokens: curAgent.maxTokens,
             temperature: curAgent.temperature,
             system: systemPrompt,
-            messages: loopMessages,
+            // Spread to prevent later loopMessages.push() calls from mutating the SDK params object
+            // (which would corrupt Vitest mock-call capture in tests).
+            messages: [...loopMessages],
           };
           if (tools.length > 0) {
             streamParams.tools = tools;
@@ -362,6 +364,19 @@ export function createConversationRouter(
           const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
 
           for (const toolUse of toolUseBlocks as any[]) {
+            // Pre-execute cap: skip the redirect tool entirely if the cap is already hit.
+            // This prevents ghost side effects (DB banner, SSE event) from a redirect
+            // that's about to be denied. Without this, execute() runs, writes side
+            // effects, and rollback is incomplete.
+            if (toolUse.name === "redirect_to_router" && redirectsThisTurn >= 1) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: toolUse.id,
+                content: "Error: redirect already used in this turn. Please respond to the user with text instead.",
+              });
+              continue;
+            }
+
             console.log(`[tool] Executing ${toolUse.name} with input: ${JSON.stringify(toolUse.input).slice(0, 200)}`);
             writeSSE(res, "tool_start", { tool: toolUse.name, input: toolUse.input });
 
@@ -407,12 +422,17 @@ export function createConversationRouter(
             content: toolResults,
           });
 
-          // Check if an assignment tool was invoked (terminal — router's turn is done)
+          // Check if a routing tool was invoked (assign_agent OR redirect_to_router).
+          // Both terminate this agent's turn and re-loop with the new active agent,
+          // so the newly-assigned agent takes its turn immediately instead of forcing
+          // the user to resend their message.
           const hasAssignment = toolResults.some((r) => r.content.startsWith("[ASSIGNMENT]"));
-          if (hasAssignment) {
-            // assign_agent reassigns the conversation. Continue the outer loop so the
-            // newly-assigned agent takes its turn immediately, responding to the user's
-            // original message instead of forcing them to send another one.
+          const hasRedirect = toolResults.some((r) => r.content.startsWith("[REDIRECT]"));
+          if (hasAssignment || hasRedirect) {
+            if (hasRedirect) {
+              redirectsThisTurn++;
+              redirectJustHappened = true;
+            }
             continueWithDelegation = true;
             break;
           }

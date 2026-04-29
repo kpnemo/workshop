@@ -86,9 +86,9 @@ describe("sendMessage", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it("calls onBlocked for blocked events", async () => {
+  it("calls onRedirect for redirect_to_router events", async () => {
     const sseBody = [
-      'event: blocked\ndata: {"message":"Stay on topic."}\n\n',
+      'event: redirect_to_router\ndata: {"from":"travel-agent","to":"router","agentName":"Auto","reason":"weather isn\'t my scope"}\n\n',
       'event: done\ndata: {"conversationId":"conv-123"}\n\n',
     ].join("");
 
@@ -102,14 +102,23 @@ describe("sendMessage", () => {
 
     mockFetch.mockResolvedValue({ ok: true, status: 200, body: stream });
 
-    const onBlocked = vi.fn();
+    const onRedirect = vi.fn();
     const onDone = vi.fn();
 
-    await sendMessage("conv-123", "politics", {
-      onDelta: vi.fn(), onBlocked, onError: vi.fn(), onTitle: vi.fn(), onDone,
+    await sendMessage("conv-123", "weather?", {
+      onDelta: vi.fn(),
+      onError: vi.fn(),
+      onTitle: vi.fn(),
+      onDone,
+      onRedirect,
     });
 
-    expect(onBlocked).toHaveBeenCalledWith("Stay on topic.");
+    expect(onRedirect).toHaveBeenCalledWith({
+      from: "travel-agent",
+      to: "router",
+      agentName: "Auto",
+      reason: "weather isn't my scope",
+    });
     expect(onDone).toHaveBeenCalled();
   });
 

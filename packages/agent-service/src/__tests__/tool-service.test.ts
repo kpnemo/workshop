@@ -160,7 +160,9 @@ describe("Delegation tool injection", () => {
 
     const definitions = service.getToolsForAgent(agent);
     const names = definitions.map((d) => d.name);
-    expect(names).toEqual(["my_tool"]);
+    expect(names).toContain("my_tool");
+    expect(names).not.toContain("delegate_to");
+    expect(names).not.toContain("hand_back");
   });
 });
 
@@ -190,5 +192,41 @@ describe("assign_agent tool gating", () => {
 
     expect(routerTools).toContain("assign_agent");
     expect(otherTools).not.toContain("assign_agent");
+  });
+});
+
+describe("redirect_to_router tool gating", () => {
+  let service: ToolService;
+
+  beforeEach(() => {
+    service = new ToolService();
+  });
+
+  it("auto-grants redirect_to_router to non-router agents and excludes the router", () => {
+    service.registerDefaults();
+
+    const router: AgentConfig = {
+      id: "router", name: "Auto", model: "m", maxTokens: 1, temperature: 1,
+      systemPrompt: "", avatar: { emoji: "✨", color: "#000" },
+      tools: ["assign_agent"],
+    };
+    const specialist: AgentConfig = {
+      id: "travel-agent", name: "Travel", model: "m", maxTokens: 1, temperature: 1,
+      systemPrompt: "", avatar: { emoji: "🤖", color: "#000" },
+      tools: ["browse_url"], // does not list redirect_to_router; auto-grant must add it
+    };
+    const noToolsSpecialist: AgentConfig = {
+      id: "weather-agent", name: "Weather", model: "m", maxTokens: 1, temperature: 1,
+      systemPrompt: "", avatar: { emoji: "🌤", color: "#000" },
+      // no tools field at all — auto-grant must still add redirect
+    };
+
+    const routerTools = service.getToolsForAgent(router).map((t) => t.name);
+    const specialistTools = service.getToolsForAgent(specialist).map((t) => t.name);
+    const noToolsSpecialistTools = service.getToolsForAgent(noToolsSpecialist).map((t) => t.name);
+
+    expect(routerTools).not.toContain("redirect_to_router");
+    expect(specialistTools).toContain("redirect_to_router");
+    expect(noToolsSpecialistTools).toContain("redirect_to_router");
   });
 });

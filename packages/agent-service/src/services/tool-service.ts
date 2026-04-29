@@ -6,6 +6,7 @@ import { createBrowseUrlTool } from "./tools/browse-url.js";
 import { createAssignAgentTool } from "./tools/assign-agent.js";
 import { createDelegateToTool } from "./tools/delegate-to.js";
 import { createHandBackTool } from "./tools/hand-back.js";
+import { createRedirectToRouterTool } from "./tools/redirect-to-router.js";
 import { createSearchFilesTool } from "./tools/search-files.js";
 import { createReadUserFileTool } from "./tools/read-user-file.js";
 import { createUpdateSummaryTool } from "./tools/update-summary.js";
@@ -38,6 +39,7 @@ export class ToolService {
   registerDefaults(): void {
     this.register(createBrowseUrlTool(this.browserManager));
     this.register(createAssignAgentTool());
+    this.register(createRedirectToRouterTool());
     this.register(createSearchFilesTool());
     this.register(createReadUserFileTool());
     this.register(createUpdateSummaryTool());
@@ -56,6 +58,15 @@ export class ToolService {
         if (tool) {
           definitions.push(tool.definition);
         }
+      }
+    }
+
+    // Auto-grant redirect_to_router to every non-router agent without requiring
+    // frontmatter opt-in, mirroring the update_summary implicit-grant pattern.
+    if (agent.id !== "router") {
+      const redirectTool = this.tools.get("redirect_to_router");
+      if (redirectTool && !definitions.some((d) => d.name === "redirect_to_router")) {
+        definitions.push(redirectTool.definition);
       }
     }
 
