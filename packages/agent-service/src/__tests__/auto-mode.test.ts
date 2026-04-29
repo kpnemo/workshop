@@ -11,10 +11,6 @@ import { Database } from "../services/database.js";
 import type { AgentConfig } from "../types.js";
 import { ToolService } from "../services/tool-service.js";
 
-vi.mock("../services/guardrails.js", () => ({
-  checkTopicBoundary: vi.fn().mockResolvedValue({ allowed: true }),
-}));
-
 vi.mock("playwright", () => ({
   chromium: {
     launch: vi.fn().mockResolvedValue({

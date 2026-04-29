@@ -149,20 +149,6 @@ const testAgent: AgentConfig = {
   systemPrompt: "You are a test bot.",
 };
 
-const guardedAgent: AgentConfig = {
-  id: "guarded-bot",
-  name: "Guarded Bot",
-  model: "claude-sonnet-4-20250514",
-  maxTokens: 1024,
-  temperature: 0.7,
-  systemPrompt: "You are guarded.",
-  topicBoundaries: {
-    allowed: ["product questions"],
-    blocked: ["politics"],
-    boundaryMessage: "I can only help with product topics.",
-  },
-};
-
 const userAToken = makeToken("user-a", "a@example.com");
 const userBToken = makeToken("user-b", "b@example.com");
 
@@ -307,10 +293,11 @@ describe("POST /conversations/:id/messages", () => {
       { message: "Tell me about pricing" }, userAToken
     );
 
+    expect(capturedStream).toHaveBeenCalledTimes(1);
     const callArgs = capturedStream.mock.calls[0][0];
     expect(callArgs.system).toContain("[Topic Boundaries]");
     expect(callArgs.system).toContain("product features, pricing");
-    expect(callArgs.system).toContain("politics");
+    expect(callArgs.system).toContain("Decline these topics by handing back: politics");
     expect(callArgs.system).toContain("redirect_to_router");
   });
 });
