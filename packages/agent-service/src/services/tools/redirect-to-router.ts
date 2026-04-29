@@ -33,6 +33,8 @@ export function createRedirectToRouterTool(): Tool {
       }
 
       context.db.setAgentId(context.conversationId, "router");
+      // `reason` is persisted in the `summary` field to reuse the existing
+      // addDelegationMessage schema without a DB migration; frontend banner reads it.
       context.db.addDelegationMessage(context.conversationId, {
         type: "redirect_to_router",
         from: fromAgentId,

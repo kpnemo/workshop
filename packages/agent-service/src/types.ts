@@ -24,11 +24,13 @@ export interface AgentConfig {
 }
 
 export interface DelegationMeta {
-  type: "delegation_start" | "delegation_end";
+  type: "delegation_start" | "delegation_end" | "assignment" | "redirect_to_router";
   from: string;
   to: string;
   context?: string;
   summary?: string;
+  agentName?: string;
+  reason?: string;
 }
 
 export interface Message {

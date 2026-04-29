@@ -55,7 +55,7 @@ describe("redirect_to_router tool", () => {
     const { ctx } = makeContext(db, agents);
     const result = await tool.execute({ reason: "x" }, ctx);
     expect(result).toContain("Error");
-    expect(result).toContain("router");
+    expect(result).toContain("Cannot redirect to router from router");
     expect(db.getConversation("c1")!.agentId).toBe("router");
   });
 
@@ -73,5 +73,19 @@ describe("redirect_to_router tool", () => {
     const result = await tool.execute({ reason: "x" }, undefined);
     expect(result).toContain("Error");
     expect(result).toContain("context");
+  });
+
+  it("falls back to agentName 'Auto' when the router agent is missing from the agents map", async () => {
+    const agents = new Map<string, AgentConfig>();
+    agents.set("travel-agent", { id: "travel-agent", name: "Travel", model: "m", maxTokens: 1, temperature: 1, systemPrompt: "", avatar: { emoji: "🤖", color: "#000" } });
+    // Intentionally omit the router entry.
+
+    const tool = createRedirectToRouterTool();
+    const { ctx, writes } = makeContext(db, agents);
+
+    const result = await tool.execute({ reason: "test" }, ctx);
+
+    expect(result).toBe('[REDIRECT] Redirected to router with reason: "test"');
+    expect(writes.join("")).toContain('"agentName":"Auto"');
   });
 });
