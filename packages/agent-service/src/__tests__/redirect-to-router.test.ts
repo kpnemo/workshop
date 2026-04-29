@@ -39,6 +39,7 @@ describe("redirect_to_router tool", () => {
     expect(banner).toBeDefined();
     expect(banner!.delegationMeta!.from).toBe("travel-agent");
     expect(banner!.delegationMeta!.to).toBe("router");
+    expect(banner!.delegationMeta!.summary).toBe("weather isn't my scope");
 
     const sse = writes.join("");
     expect(sse).toContain("event: redirect_to_router");

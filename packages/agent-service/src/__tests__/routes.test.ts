@@ -539,7 +539,7 @@ describe("Redirect-to-router flow", () => {
     expect(toolResultBlock).toBeDefined();
     expect(toolResultBlock.content).toContain("redirect already used");
 
-    // Conversation ended on agent-a (rollback worked)
+    // Conversation stayed on agent-a — the capped redirect tool was never executed.
     expect(db.getConversation("conv-cap")!.agentId).toBe("agent-a");
   });
 });
