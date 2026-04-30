@@ -25,6 +25,8 @@ describe("useChat", () => {
         title: null,
         updatedAt: "2026-03-25T10:00:00Z",
         messageCount: 0,
+        summaryEnabled: false,
+        icon: null,
       },
     ]);
   });
@@ -204,6 +206,8 @@ describe("useChat", () => {
         title: null,
         updatedAt: "2026-03-25T11:00:00Z",
         messageCount: 0,
+        summaryEnabled: false,
+        icon: null,
       },
       {
         id: "conv-123",
@@ -211,6 +215,8 @@ describe("useChat", () => {
         title: null,
         updatedAt: "2026-03-25T10:00:00Z",
         messageCount: 2,
+        summaryEnabled: false,
+        icon: null,
       },
     ]);
     await act(async () => {

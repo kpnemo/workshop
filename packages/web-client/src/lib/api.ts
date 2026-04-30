@@ -166,6 +166,9 @@ export async function sendMessage(
           case "title":
             callbacks.onTitle(data.title);
             break;
+          case "icon":
+            callbacks.onIcon?.(data.icon);
+            break;
           case "delegation_start":
             callbacks.onDelegationStart?.(data);
             break;

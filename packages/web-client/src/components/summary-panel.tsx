@@ -11,7 +11,7 @@ export function SummaryPanel({ summary, onRefresh, isStreaming }: SummaryPanelPr
   const [cooldown, setCooldown] = useState(false);
   const [animating, setAnimating] = useState(false);
   const prevSummaryRef = useRef(summary);
-  const cooldownTimer = useRef<ReturnType<typeof setTimeout>>();
+  const cooldownTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Detect summary changes for fade-in animation
   useEffect(() => {

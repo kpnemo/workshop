@@ -415,3 +415,40 @@ describe("deleteFile", () => {
     );
   });
 });
+
+describe("sendMessage icon SSE event", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("calls onIcon when an icon SSE event is received", async () => {
+    const sseBody = [
+      'event: icon\ndata: {"icon":"emoji:🔢"}\n\n',
+      'event: done\ndata: {"conversationId":"conv-123"}\n\n',
+    ].join("");
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(sseBody));
+        controller.close();
+      },
+    });
+
+    mockFetch.mockResolvedValue({ ok: true, status: 200, body: stream });
+
+    const onIcon = vi.fn();
+    const onDone = vi.fn();
+
+    await sendMessage("conv-123", "Hi", {
+      onDelta: vi.fn(),
+      onError: vi.fn(),
+      onTitle: vi.fn(),
+      onIcon,
+      onDone,
+    });
+
+    expect(onIcon).toHaveBeenCalledWith("emoji:🔢");
+    expect(onDone).toHaveBeenCalled();
+  });
+});
