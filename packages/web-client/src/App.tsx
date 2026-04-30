@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AgentsProvider } from "./contexts/AgentsContext";
 import { AuthPage } from "./components/AuthPage";
 import { ChatPage } from "./pages/chat-page";
+import { AgentsPage } from "./pages/agents-page";
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -12,6 +13,7 @@ function AppContent() {
     <AgentsProvider>
       <Routes>
         <Route path="/" element={<ChatPage />} />
+        <Route path="/agents/*" element={<AgentsPage />} />
         <Route path="*" element={<ChatPage />} />
       </Routes>
     </AgentsProvider>
