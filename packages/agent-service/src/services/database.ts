@@ -28,7 +28,8 @@ export class Database {
         user_id TEXT NOT NULL REFERENCES users(id),
         title TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        icon TEXT
       );
 
       CREATE TABLE IF NOT EXISTS messages (
@@ -94,13 +95,13 @@ export class Database {
     this.db
       .prepare("INSERT INTO conversations (id, agent_id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, ?)")
       .run(id, agentId, userId, now, now);
-    return { id, agentId, activeAgent: null, title: null, messages: [], createdAt: new Date(now), updatedAt: new Date(now), summary: null, summaryEnabled: false };
+    return { id, agentId, activeAgent: null, title: null, messages: [], createdAt: new Date(now), updatedAt: new Date(now), summary: null, summaryEnabled: false, icon: null };
   }
 
   getConversation(id: string): Conversation | undefined {
     const row = this.db
-      .prepare("SELECT id, agent_id, active_agent, title, created_at, updated_at, summary, summary_enabled FROM conversations WHERE id = ?")
-      .get(id) as { id: string; agent_id: string; active_agent: string | null; title: string | null; created_at: string; updated_at: string; summary: string | null; summary_enabled: number } | undefined;
+      .prepare("SELECT id, agent_id, active_agent, title, created_at, updated_at, summary, summary_enabled, icon FROM conversations WHERE id = ?")
+      .get(id) as { id: string; agent_id: string; active_agent: string | null; title: string | null; created_at: string; updated_at: string; summary: string | null; summary_enabled: number; icon: string | null } | undefined;
 
     if (!row) return undefined;
 
@@ -124,17 +125,18 @@ export class Database {
       updatedAt: new Date(row.updated_at),
       summary: row.summary ?? null,
       summaryEnabled: row.summary_enabled === 1,
+      icon: row.icon ?? null,
     };
   }
 
   listConversations(userId: string): ConversationSummary[] {
     const rows = this.db.prepare(`
-      SELECT c.id, c.agent_id, c.title, c.updated_at, COUNT(m.id) as message_count, c.summary_enabled
+      SELECT c.id, c.agent_id, c.title, c.updated_at, COUNT(m.id) as message_count, c.summary_enabled, c.icon
       FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
       WHERE c.user_id = ?
       GROUP BY c.id ORDER BY c.updated_at DESC
-    `).all(userId) as Array<{ id: string; agent_id: string; title: string | null; updated_at: string; message_count: number; summary_enabled: number }>;
-    return rows.map((r) => ({ id: r.id, agentId: r.agent_id, title: r.title, updatedAt: new Date(r.updated_at), messageCount: r.message_count, summaryEnabled: r.summary_enabled === 1 }));
+    `).all(userId) as Array<{ id: string; agent_id: string; title: string | null; updated_at: string; message_count: number; summary_enabled: number; icon: string | null }>;
+    return rows.map((r) => ({ id: r.id, agentId: r.agent_id, title: r.title, updatedAt: new Date(r.updated_at), messageCount: r.message_count, summaryEnabled: r.summary_enabled === 1, icon: r.icon ?? null }));
   }
 
   getConversationOwnerId(conversationId: string): string | undefined {
@@ -189,6 +191,12 @@ export class Database {
     this.db
       .prepare("UPDATE conversations SET title = ? WHERE id = ?")
       .run(title, id);
+  }
+
+  setIcon(id: string, icon: string): void {
+    this.db
+      .prepare("UPDATE conversations SET icon = ? WHERE id = ?")
+      .run(icon, id);
   }
 
   setSummary(id: string, summary: string): void {
@@ -248,6 +256,12 @@ export class Database {
         "ALTER TABLE conversations ADD COLUMN summary_enabled INTEGER DEFAULT 0"
       );
       console.log("[database] Migration: added summary_enabled column to conversations");
+    }
+
+    const convCols3 = this.db.prepare("PRAGMA table_info(conversations)").all() as Array<{ name: string }>;
+    if (!convCols3.some((c) => c.name === "icon")) {
+      this.db.exec("ALTER TABLE conversations ADD COLUMN icon TEXT");
+      console.log("[database] Migration: added icon column to conversations");
     }
   }
 

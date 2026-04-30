@@ -331,3 +331,47 @@ describe("Database", () => {
     });
   });
 });
+
+describe("conversation icon column", () => {
+  let db: Database;
+  let userId: string;
+  let convId: string;
+
+  beforeEach(() => {
+    db = new Database(":memory:");
+    userId = "u1";
+    db.createUser(userId, "u1@test", "hash");
+    const conv = db.createConversation("c1", "support-bot", userId);
+    convId = conv.id;
+  });
+
+  it("starts with icon as null", () => {
+    const conv = db.getConversation(convId)!;
+    expect(conv.icon).toBeNull();
+  });
+
+  it("setIcon persists the value", () => {
+    db.setIcon(convId, "emoji:🔢");
+    const conv = db.getConversation(convId)!;
+    expect(conv.icon).toBe("emoji:🔢");
+  });
+
+  it("setIcon overwrites existing value", () => {
+    db.setIcon(convId, "emoji:🔢");
+    db.setIcon(convId, "lucide:plane");
+    const conv = db.getConversation(convId)!;
+    expect(conv.icon).toBe("lucide:plane");
+  });
+
+  it("listConversations includes icon field", () => {
+    db.setIcon(convId, "emoji:🐛");
+    const list = db.listConversations(userId);
+    expect(list).toHaveLength(1);
+    expect(list[0].icon).toBe("emoji:🐛");
+  });
+
+  it("listConversations returns null icon for fresh conversations", () => {
+    const list = db.listConversations(userId);
+    expect(list[0].icon).toBeNull();
+  });
+});
