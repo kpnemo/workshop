@@ -5,6 +5,7 @@ import { AuthPage } from "./components/AuthPage";
 import { ChatPage } from "./pages/chat-page";
 import { AgentsPage } from "./pages/agents-page";
 import { AgentsIndex } from "./pages/agents-index";
+import { AgentEditor } from "./pages/agent-editor";
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -16,7 +17,9 @@ function AppContent() {
         <Route path="/" element={<ChatPage />} />
         <Route path="/agents" element={<AgentsPage />}>
           <Route index element={<AgentsIndex />} />
-          <Route path="*" element={<div className="flex h-full items-center justify-center text-muted">Loading…</div>} />
+          <Route path="new" element={<AgentEditor />} />
+          <Route path=":id" element={<AgentEditor />} />
+          <Route path="*" element={<AgentsIndex />} />
         </Route>
         <Route path="*" element={<ChatPage />} />
       </Routes>
