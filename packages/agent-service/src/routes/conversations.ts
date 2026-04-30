@@ -511,13 +511,13 @@ export function createConversationRouter(
 
         if (titleResult.status === "fulfilled" && titleResult.value) {
           db.setTitle(conversation.id, titleResult.value);
-          if (!res.writableEnded) writeSSE(res, "title", { title: titleResult.value });
+          if (!res.writableEnded && !res.destroyed) writeSSE(res, "title", { title: titleResult.value });
           console.log(`[title] Generated: "${titleResult.value}"`);
         }
 
         if (iconResult.status === "fulfilled" && iconResult.value) {
           db.setIcon(conversation.id, iconResult.value);
-          if (!res.writableEnded) writeSSE(res, "icon", { icon: iconResult.value });
+          if (!res.writableEnded && !res.destroyed) writeSSE(res, "icon", { icon: iconResult.value });
           console.log(`[icon] Generated: "${iconResult.value}"`);
         }
       }
