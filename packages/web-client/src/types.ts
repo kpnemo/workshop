@@ -32,6 +32,7 @@ export interface ConversationSummary {
   updatedAt: string;
   messageCount: number;
   summaryEnabled: boolean;
+  icon: string | null;
 }
 
 export interface ChatState {
@@ -73,6 +74,7 @@ export interface SendMessageCallbacks {
   onBlocked?: (message: string) => void;
   onError: (message: string) => void;
   onTitle: (title: string) => void;
+  onIcon?: (icon: string) => void;
   onDone: () => void;
   onDelegationStart?: (data: { from: string; to: string; agentName: string; emoji: string; color: string; context: string }) => void;
   onDelegationEnd?: (data: { from: string; to: string; agentName: string; summary: string }) => void;

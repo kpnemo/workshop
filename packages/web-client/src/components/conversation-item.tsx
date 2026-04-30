@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import { AgentAvatar } from "./agent-avatar";
+import { ConversationIcon } from "./conversation-icon";
 import type { ConversationSummary, AgentSummary } from "../types";
 
 function relativeTime(dateStr: string): string {
@@ -45,11 +45,11 @@ export function ConversationItem({
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         {agent ? (
-          <AgentAvatar avatar={agent.avatar} size="sm" />
+          <ConversationIcon icon={conversation.icon} agentAvatar={agent.avatar} size="sm" />
         ) : (
           <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px]">?</div>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pr-1">
           <div className="truncate text-sm font-medium">
             {conversation.title || "New conversation"}
           </div>

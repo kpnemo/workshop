@@ -25,6 +25,8 @@ describe("useChat", () => {
         title: null,
         updatedAt: "2026-03-25T10:00:00Z",
         messageCount: 0,
+        summaryEnabled: false,
+        icon: null,
       },
     ]);
   });
@@ -204,6 +206,8 @@ describe("useChat", () => {
         title: null,
         updatedAt: "2026-03-25T11:00:00Z",
         messageCount: 0,
+        summaryEnabled: false,
+        icon: null,
       },
       {
         id: "conv-123",
@@ -211,6 +215,8 @@ describe("useChat", () => {
         title: null,
         updatedAt: "2026-03-25T10:00:00Z",
         messageCount: 2,
+        summaryEnabled: false,
+        icon: null,
       },
     ]);
     await act(async () => {
@@ -220,5 +226,24 @@ describe("useChat", () => {
       expect(result.current.state.conversationId).toBe("conv-456");
       expect(result.current.state.messages).toHaveLength(0);
     });
+  });
+
+  it("updates conversation icon in state when onIcon SSE event fires", async () => {
+    vi.mocked(api.sendMessage).mockImplementation(async (_id, _msg, cb) => {
+      cb.onIcon?.("emoji:🔢");
+      cb.onDone();
+    });
+    const { result } = renderHook(() => useChat(DEFAULT_AGENT_ID));
+    await waitFor(() => {
+      expect(result.current.state.conversationId).toBe("conv-123");
+    });
+    await act(async () => {
+      result.current.sendMessage("Hello");
+    });
+    await waitFor(() => {
+      expect(result.current.state.isStreaming).toBe(false);
+    });
+    const conv = result.current.state.conversations.find((c) => c.id === "conv-123");
+    expect(conv?.icon).toBe("emoji:🔢");
   });
 });

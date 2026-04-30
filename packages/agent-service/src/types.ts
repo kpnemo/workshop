@@ -51,6 +51,7 @@ export interface Conversation {
   updatedAt: Date;
   summary: string | null;
   summaryEnabled: boolean;
+  icon: string | null;
 }
 
 export interface ConversationSummary {
@@ -60,6 +61,7 @@ export interface ConversationSummary {
   updatedAt: Date;
   messageCount: number;
   summaryEnabled: boolean;
+  icon: string | null;
 }
 
 export interface User {
