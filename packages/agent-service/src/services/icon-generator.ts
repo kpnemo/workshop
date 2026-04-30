@@ -1,3 +1,6 @@
+// @ts-expect-error — lucide-react v0.469 ships dynamicIconImports.d.ts at this subpath
+// but the package's exports map doesn't expose it under node16 module resolution.
+// Runtime works correctly. This compiles and tree-shakes the same as a named import.
 import dynamicIconImports from "lucide-react/dynamicIconImports";
 import type Anthropic from "@anthropic-ai/sdk";
 

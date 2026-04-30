@@ -125,6 +125,7 @@ function makeAgent(id: string, overrides: Partial<AgentConfig> = {}): AgentConfi
     maxTokens: 1024,
     temperature: 0.7,
     systemPrompt: `You are ${id}.`,
+    avatar: { emoji: "🤖", color: "#888" },
     ...overrides,
   };
 }
