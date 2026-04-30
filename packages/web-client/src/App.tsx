@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AgentsProvider, useAgentsContext } from "./contexts/AgentsContext";
 import { AuthPage } from "./components/AuthPage";
 import { useChat } from "./hooks/use-chat";
-import { Sidebar } from "./components/sidebar";
+import { ChatSidebar } from "./components/chat-sidebar";
 import { ChatContainer } from "./components/chat-container";
 import { AgentDrawer } from "./components/agent-drawer";
 import { CopilotPanel } from "./components/copilot-panel";
@@ -36,14 +36,13 @@ function AuthenticatedApp() {
 
   return (
     <div className="flex h-full">
-      <Sidebar
+      <ChatSidebar
         conversations={state.conversations}
         activeConversationId={state.conversationId}
         agents={agents}
         onSelect={selectConversation}
         onNewChat={() => startNewChat()}
         onDelete={deleteConversation}
-        onManageAgents={() => setDrawerOpen(true)}
       />
       <ChatContainer
         conversationId={state.conversationId}
