@@ -4,6 +4,7 @@ import { AgentsProvider } from "./contexts/AgentsContext";
 import { AuthPage } from "./components/AuthPage";
 import { ChatPage } from "./pages/chat-page";
 import { AgentsPage } from "./pages/agents-page";
+import { AgentsIndex } from "./pages/agents-index";
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -13,7 +14,10 @@ function AppContent() {
     <AgentsProvider>
       <Routes>
         <Route path="/" element={<ChatPage />} />
-        <Route path="/agents/*" element={<AgentsPage />} />
+        <Route path="/agents" element={<AgentsPage />}>
+          <Route index element={<AgentsIndex />} />
+          <Route path="*" element={<div className="flex h-full items-center justify-center text-muted">Loading…</div>} />
+        </Route>
         <Route path="*" element={<ChatPage />} />
       </Routes>
     </AgentsProvider>
