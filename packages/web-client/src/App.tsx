@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AgentsProvider, useAgentsContext } from "./contexts/AgentsContext";
 import { AuthPage } from "./components/AuthPage";
 import { useChat } from "./hooks/use-chat";
-import { useAgents } from "./hooks/use-agents";
 import { Sidebar } from "./components/sidebar";
 import { ChatContainer } from "./components/chat-container";
 import { AgentDrawer } from "./components/agent-drawer";
@@ -12,7 +12,7 @@ import { useCopilot } from "./hooks/use-copilot";
 import { useDebug } from "./hooks/use-debug";
 
 function AuthenticatedApp() {
-  const { agents, createAgent, updateAgent, deleteAgent, loadAgents } = useAgents();
+  const { agents, createAgent, updateAgent, deleteAgent, loadAgents } = useAgentsContext();
   const debug = useDebug();
   const {
     state,
@@ -104,9 +104,11 @@ function AppContent() {
   }
 
   return (
-    <Routes>
-      <Route path="*" element={<AuthenticatedApp />} />
-    </Routes>
+    <AgentsProvider>
+      <Routes>
+        <Route path="*" element={<AuthenticatedApp />} />
+      </Routes>
+    </AgentsProvider>
   );
 }
 
