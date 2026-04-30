@@ -6,6 +6,7 @@ import { Database } from "../services/database.js";
 import type { AgentConfig } from "../types.js";
 import type { ToolService } from "../services/tool-service.js";
 import type { FileService } from "../services/file-service.js";
+import { generateIcon } from "../services/icon-generator.js";
 
 let anthropic: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -51,6 +52,7 @@ export function createConversationRouter(
         updatedAt: c.updatedAt.toISOString(),
         messageCount: c.messageCount,
         summaryEnabled: c.summaryEnabled,
+        icon: c.icon,
       }))
     );
   });
@@ -466,35 +468,57 @@ export function createConversationRouter(
         }
       }
 
-      // Generate title if this is the first exchange (no title yet)
-      // Re-read conversation to get current agentId (assignment may have changed it mid-turn)
+      // Generate title (first turn only) and icon (every turn) concurrently.
+      // Both run after streaming finishes; both fire SSE events before `done`
+      // so the client sees them within the same HTTP turn.
       const finalConv = db.getConversation(conversation.id)!;
-      if (!conversation.title && finalConv.agentId !== "router") {
-        try {
-          console.log(`[title] Generating title for conversation ${conversation.id}`);
-          const titleResponse = await getClient().messages.create({
-            model: "claude-haiku-4-5-20251001",
-            max_tokens: 20,
-            messages: [
-              {
-                role: "user",
-                content: `Generate a 3-6 word title for this conversation. Reply with ONLY the title, no quotes or punctuation.\n\nUser: ${message}\nAssistant: ${fullResponse.slice(0, 200)}`,
-              },
-            ],
-          });
+      if (finalConv.agentId !== "router") {
+        const lastUserMessage = message;
+        const lastAssistantMessage = fullResponse.slice(0, 300);
 
-          const title =
-            titleResponse.content[0].type === "text"
-              ? titleResponse.content[0].text.trim()
-              : null;
-
-          if (title) {
-            db.setTitle(conversation.id, title);
-            writeSSE(res, "title", { title });
-            console.log(`[title] Generated: "${title}"`);
+        const titlePromise: Promise<string | null> = (async () => {
+          if (conversation.title) return null; // already has a title
+          try {
+            console.log(`[title] Generating title for conversation ${conversation.id}`);
+            const titleResponse = await getClient().messages.create({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 20,
+              messages: [
+                {
+                  role: "user",
+                  content: `Generate a 3-6 word title for this conversation. Reply with ONLY the title, no quotes or punctuation.\n\nUser: ${message}\nAssistant: ${fullResponse.slice(0, 200)}`,
+                },
+              ],
+            });
+            const title =
+              titleResponse.content[0].type === "text"
+                ? titleResponse.content[0].text.trim()
+                : null;
+            return title || null;
+          } catch (err) {
+            console.error("[title] Title generation failed:", err);
+            return null;
           }
-        } catch (err) {
-          console.error("[title] Title generation failed:", err);
+        })();
+
+        const iconPromise = generateIcon(getClient(), {
+          title: conversation.title,
+          lastUserMessage,
+          lastAssistantMessage,
+        });
+
+        const [titleResult, iconResult] = await Promise.allSettled([titlePromise, iconPromise]);
+
+        if (titleResult.status === "fulfilled" && titleResult.value) {
+          db.setTitle(conversation.id, titleResult.value);
+          if (!res.writableEnded) writeSSE(res, "title", { title: titleResult.value });
+          console.log(`[title] Generated: "${titleResult.value}"`);
+        }
+
+        if (iconResult.status === "fulfilled" && iconResult.value) {
+          db.setIcon(conversation.id, iconResult.value);
+          if (!res.writableEnded) writeSSE(res, "icon", { icon: iconResult.value });
+          console.log(`[icon] Generated: "${iconResult.value}"`);
         }
       }
 
@@ -593,6 +617,7 @@ export function createConversationRouter(
       agentId: conversation.agentId,
       activeAgent: conversation.activeAgent,
       title: conversation.title,
+      icon: conversation.icon,
       createdAt: conversation.createdAt.toISOString(),
       summary: conversation.summary,
       summaryEnabled: conversation.summaryEnabled,
