@@ -286,6 +286,14 @@ export function useChat(
             ),
           }));
         },
+        onIcon: (icon) => {
+          setState((s) => ({
+            ...s,
+            conversations: s.conversations.map((c) =>
+              c.id === s.conversationId ? { ...c, icon } : c
+            ),
+          }));
+        },
         onDone: () => {
           setState((s) => ({
             ...s,
