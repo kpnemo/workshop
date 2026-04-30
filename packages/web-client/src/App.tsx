@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AuthPage } from "./components/AuthPage";
 import { useChat } from "./hooks/use-chat";
@@ -102,7 +103,11 @@ function AppContent() {
     return <AuthPage />;
   }
 
-  return <AuthenticatedApp />;
+  return (
+    <Routes>
+      <Route path="*" element={<AuthenticatedApp />} />
+    </Routes>
+  );
 }
 
 export default function App() {
