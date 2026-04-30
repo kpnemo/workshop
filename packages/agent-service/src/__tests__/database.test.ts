@@ -345,6 +345,10 @@ describe("conversation icon column", () => {
     convId = conv.id;
   });
 
+  afterEach(() => {
+    db.close();
+  });
+
   it("starts with icon as null", () => {
     const conv = db.getConversation(convId)!;
     expect(conv.icon).toBeNull();
