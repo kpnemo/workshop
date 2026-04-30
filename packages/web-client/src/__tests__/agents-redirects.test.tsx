@@ -34,7 +34,7 @@ const FAKE_AGENTS = [
 
 function renderApp(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <App />
     </MemoryRouter>,
   );

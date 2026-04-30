@@ -31,7 +31,7 @@ const C = { id: "c", name: "C", model: "claude-sonnet", avatar: { emoji: "🤖",
 
 function renderApp(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: false, v7_relativeSplatPath: true }}>
       <App />
     </MemoryRouter>,
   );

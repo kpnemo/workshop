@@ -70,6 +70,7 @@ export function AgentEditor() {
       setDeleteError(null);
       if (next) navigate(`/agents/${next}`, { replace: true });
       else navigate("/agents", { replace: true });
+      deletingRef.current = false;
     } catch (e) {
       deletingRef.current = false;
       setDeleteError(e instanceof Error ? e.message : "Failed to delete");
